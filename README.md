@@ -39,7 +39,7 @@ delegateToOperator()
 
 1. Swap Execution:
     * Users initiate a swap on Uniswap v4.
-    * If the swap involves ETH to stETH, the afterSwap hook is triggered.
+    * If the swap involves ETH to stETH or (lst), the afterSwap hook is triggered.
       
 2. Deposit into Strategy:
     * The afterSwap function calls depositStETHIntoStrategy.
