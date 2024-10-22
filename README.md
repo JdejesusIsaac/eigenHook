@@ -1,5 +1,5 @@
 
-###  DelegateToHook 🦄**
+###  DelegateToHook 🦄
 
 The delegateToHook project is a smart contract designed to integrate with Uniswap v4 hooks, facilitating the automatic deposit of stETH into a  EigenLayer strategy and delegating staked assets to operators within the EigenLayer ecosystem. This contract aims to streamline the process of managing stETH (lst) assets by automating key operations post-swap.
 
