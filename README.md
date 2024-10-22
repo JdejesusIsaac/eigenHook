@@ -1,7 +1,7 @@
-# v4-template
-### **A template for writing Uniswap v4 Hooks 🦄**
 
-[`Use this Template`](https://github.com/uniswapfoundation/v4-template/generate)
+### ** DelegateToHook 🦄**
+
+
 
 1. The example hook [Counter.sol](src/Counter.sol) demonstrates the `beforeSwap()` and `afterSwap()` hooks
 2. The test template [Counter.t.sol](test/Counter.t.sol) preconfigures the v4 pool manager, test tokens, and test liquidity.
@@ -9,16 +9,68 @@
 <details>
 <summary>Updating to v4-template:latest</summary>
 
-This template is actively maintained -- you can update the v4 dependencies, scripts, and helpers: 
-```bash
-git remote add template https://github.com/uniswapfoundation/v4-template
-git fetch template
-git merge template/main <BRANCH> --allow-unrelated-histories
-```
+The delegateToHook project is a smart contract designed to integrate with Uniswap v4 hooks, facilitating the automatic deposit of stETH into a strategy and delegating staked assets to operators within the EigenLayer ecosystem. This contract aims to streamline the process of managing stETH assets by automating key operations post-swap.
+
+
+
 
 </details>
 
 ---
+### Features
+* after a swap.
+* Delegation: Allows users to delegate staked assets to operators using a signature-based authorization.
+* Event Emission: Emits events to track deposits and delegations.
+
+
+
+### Key Components
+* DelegationManager: Manages the delegation of staked assets.
+* StrategyManager: Handles deposits into various strategies.
+* STETH: Utilizes a hardcoded address for the stETH token.
+
+
+
+### Contract Functions
+
+afterSwap()
+* Triggered after a swap operation.
+* Calls depositStETHIntoStrategy to deposit stETH into a strategy.
+* Returns the function selector and output amount.
+
+
+depositStETHIntoStrategy()
+* Deposits stETH into a specified strategy.
+* Calculates the output amount based on swap direction.
+* Approves and deposits the output token into the strategy.
+* Emits a Deposited event.
+
+
+delegateToOperator()
+* Delegates staked assets to a specified operator.
+* Requires the operator's address, a signature, expiry, and a salt value.
+* Constructs a SignatureWithExpiry structure to authorize the delegation.
+* Utilizes the DelegationManager to finalize the delegation process.
+
+
+### User Flow
+
+1. Swap Execution:
+    * Users initiate a swap on Uniswap v4.
+    * If the swap involves ETH to stETH, the afterSwap hook is triggered.
+      
+2. Deposit into Strategy:
+    * The afterSwap function calls depositStETHIntoStrategy.
+    * The contract calculates the amount of stETH received and deposits it into a strategy using the StrategyManager.
+    * A Deposited event is emitted to log the transaction details.
+      
+3. Delegation to Operator:
+    * Users can call delegateToOperator to delegate their staked assets.
+    * This requires providing the necessary authorization details, including a valid signature.
+
+
+
+
 
 ### Check Forge Installation
 *Ensure that you have correctly installed Foundry (Forge) and that it's up to date. You can update Foundry by running:*
