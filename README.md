@@ -12,11 +12,6 @@ The delegateToHook project is a smart contract designed to integrate with Uniswa
 
 </details>
 
----
-### Features
-* after a swap.
-* Delegation: Allows users to delegate staked assets to operators using a signature-based authorization.
-* Event Emission: Emits events to track deposits and delegations.
 
 
 
