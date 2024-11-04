@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {BaseHook} from "v4-periphery/src/base/hooks/BaseHook.sol";
+import {ERC1155} from "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 
 import {Hooks} from "v4-core/src/libraries/Hooks.sol";
 import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
@@ -17,7 +18,7 @@ import "../src/interfaces/IDelegationManager.sol";
 import "../src/interfaces/IStrategyManager.sol";
 
 
-contract delegateToHook is BaseHook {
+contract delegateToHook is BaseHook, ERC1155 {
     using PoolIdLibrary for PoolKey;
     using CurrencySettler for Currency;
 
@@ -28,19 +29,25 @@ contract delegateToHook is BaseHook {
     IStrategyManager public strategyManager = IStrategyManager(address(0x858646372CC42E1A627fcE94aa7A7033e7CF075A));
     address constant STETH = 0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84;
 
-    address public strategyManagerAddress = address(0);
+    address public strategyManagerAddress = address(0x858646372CC42E1A627fcE94aa7A7033e7CF075A);
 
     event Deposited(address indexed staker, address strategy, IERC20 token, uint256 amount, uint256 shares);
+
+    mapping(uint256 positionId => uint256 claimsSupply) public claimTokensSupply;
+        
+
+// Constructor
+    
    
 
 
-   
 
     constructor(
         IPoolManager _poolManager,
-        address _delegationManager
+        address _delegationManager,
+        string memory _uri
         
-    ) BaseHook(_poolManager) {
+    ) BaseHook(_poolManager) ERC1155(_uri){
          delegationManager = IDelegationManager(_delegationManager);
        
         
@@ -72,63 +79,69 @@ contract delegateToHook is BaseHook {
     }
 
     function afterSwap(
-        address,
-        PoolKey calldata key,
-        IPoolManager.SwapParams calldata params,
-        BalanceDelta delta,
-         IStrategy eigenLayerStrategy,
-       // IERC20 steth ,
-        uint256 amount
-      //  bytes calldata hookData
-    ) external  returns (bytes4, int128) {
-
-         int128 outputAmount = depositStETHIntoStrategy(key, delta, params.zeroForOne, eigenLayerStrategy, amount);
-
-         return (BaseHook.afterSwap.selector, outputAmount);
-        
-            
-
-            // TODO add more validations
-            
-                 // bool zeroForOne = params.zeroForOne;
-                // TODO handle ETH
-                // handle zeroForOne trades
-         
-            
-        
-
-        
+    address,  // Unused sender parameter
+    PoolKey calldata key,
+    IPoolManager.SwapParams calldata params,
+    BalanceDelta delta,
+    bytes calldata hookData
+) external override onlyPoolManager returns (bytes4, int128) { 
+    // Ensure that the swap involves ETH to stETH (or lstETH)
+    if (Currency.unwrap(key.currency0) != address(0) || Currency.unwrap(key.currency1) != STETH) {
+        // If not swapping ETH for stETH, skip further processing
+        return (this.afterSwap.selector, 0);
     }
-               
+
+    // Decode strategy from hookData, if available
+    IStrategy eigenLayerStrategy;
+    if (hookData.length > 0) {
+        (eigenLayerStrategy) = abi.decode(hookData, (IStrategy));
+    } else {
+        return (this.afterSwap.selector, 0);  // No strategy provided, return early
+    }
+
+    // Determine the amount of stETH received based on swap direction
+    int128 outputAmount = depositLstIntoStrategy(key, delta, eigenLayerStrategy, params.zeroForOne);
+
+    return (this.afterSwap.selector, outputAmount);
+}
+
+
+    function updateIStrategyManager(address _strategyManager) external {
+        strategyManager = IStrategyManager(_strategyManager);
+    }
+
+    function depositLstIntoStrategy(
+    PoolKey memory key,
+    BalanceDelta delta,
+    IStrategy eigenLayerStrategy,
+    bool zeroForOne
+   
+) internal returns (int128) {
+    // Determine the amount based on the swap direction
+    int128 outputAmount = zeroForOne ? delta.amount1() : delta.amount0();
+    if (outputAmount <= 0) {
+        return 0;  // No output amount, return early
+    }
+
+    Currency outputCurrency = zeroForOne ? key.currency1 : key.currency0;
+
+    // Transfer stETH from the pool to this contract
+    poolManager.take(outputCurrency, address(this), uint128(outputAmount));
+    IERC20 outputToken = IERC20(Currency.unwrap(outputCurrency));
 
     
+        outputToken.approve(address(strategyManager), type(uint256).max);  // Set max approval to save gas
+    
 
-     function depositStETHIntoStrategy(
+    // Deposit stETH into the EigenLayer strategy
+    uint256 shares = strategyManager.depositIntoStrategy(eigenLayerStrategy, outputToken, uint128(outputAmount));
+ 
+    // Emit event for the deposit
+    emit Deposited(msg.sender, address(strategyManager), outputToken, uint128(outputAmount), shares);
 
-         PoolKey memory key,
-        BalanceDelta delta,
-        bool zeroForOne,
-        IStrategy eigenLayerStrategy,
-       // IERC20 steth ,
-        uint256 amount
-    ) internal returns (int128) {
-        int128 outputAmount = zeroForOne ? delta.amount1() : delta.amount0();
-        Currency outputCurrency = zeroForOne ? key.currency1 : key.currency0;
+    return outputAmount;
+}
 
-        poolManager.take(outputCurrency, address(this), uint128(outputAmount));
-        IERC20 outputToken = IERC20(Currency.unwrap(outputCurrency));
-        IERC20(outputToken).approve(strategyManagerAddress, uint128(outputAmount));
-
-        // Call the depositIntoStrategy function to deposit the stETH into the strategy
-        uint256 shares = strategyManager.depositIntoStrategy(eigenLayerStrategy, outputToken, amount);
-
-        
-
-        // Emit an event or handle the shares if needed
-        emit Deposited(msg.sender, strategyManagerAddress,  outputToken, amount, shares);
-
-        return outputAmount;
-    }
 
         function delegateToOperator(
         address operator,

@@ -55,6 +55,8 @@ contract NoOpTest is Test, Fixtures {
 
     // Define the pool key with two currencies, fee tier, and tick spacing
     key = PoolKey(currency0, currency1, 3000, 60, IHooks(hook));
+
+    
     poolId = key.toId();
 
     // Initialize the pool

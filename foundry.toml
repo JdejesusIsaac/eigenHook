@@ -7,7 +7,7 @@ fs_permissions = [{ access = "read-write", path = ".forge-snapshots/"}]
 remappings = ['solidity-bytes-utils/=lib/solidity-bytes-utils',
 '@layerzerolabs/lz-evm-oapp-v2/=lib/LayerZero-v2/oapp',
 '@layerzerolabs/lz-evm-protocol-v2/=lib/LayerZero-v2/protocol',
-'@layerzerolabs/lz-evm-messagelib-v2/=lib/LayerZero-v2/messagelib','@chainlink/contracts-ccip/=lib/ccip/contracts', 'chainlink-local/=lib/chainlink-local/', '@uniswap/v4-core/=lib/v4-core/]', 'forge-gas-snapshot/=lib/v4-core/lib/forge-gas-snapshot/src/', 'forge-std/=lib/v4-core/lib/forge-std/src/', 'permit2/=lib/v4-periphery/lib/permit2/', 'solmate/=lib/v4-core/lib/solmate/', 'v4-core/=lib/v4-core/', 'v4-periphery/=lib/v4-periphery/']
+'@layerzerolabs/lz-evm-messagelib-v2/=lib/LayerZero-v2/messagelib','@chainlink/contracts-ccip/=lib/ccip/contracts', 'chainlink-local/=lib/chainlink-local/', '@uniswap/v4-core/=lib/v4-core/]', 'forge-gas-snapshot/=lib/v4-core/lib/forge-gas-snapshot/src/', 'forge-std/=lib/v4-core/lib/forge-std/src/', 'permit2/=lib/v4-periphery/lib/permit2/', 'solmate/=lib/v4-core/lib/solmate/', 'v4-core/=lib/v4-core/', 'v4-periphery/=lib/v4-periphery/' ]
 
 
 solc_version = "0.8.26"

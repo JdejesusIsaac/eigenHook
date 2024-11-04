@@ -138,7 +138,7 @@ contract uniswapBaseTest is Test {
 
      function setUp() public {
          uni = new UniswapV3LiquidityBase(ethPriceFeed );
-           mainnetFork = vm.createSelectFork("https://eth-mainnet.g.alchemy.com/v2/czjGR6KFDr37NScDmUR7bY8u-aiB-OzF");
+           mainnetFork = vm.createSelectFork("wwww.alchemyapi.io");
 
             vm.deal(address(this), 30 ether);
 

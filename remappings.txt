@@ -13,3 +13,5 @@ v4-periphery/=lib/v4-periphery/
 @layerzerolabs/oft-evm/=lib/devtools/packages/oft-evm/
 @layerzerolabs/oapp-evm/=lib/devtools/packages/oapp-evm/
 @layerzerolabs/lz-evm-protocol-v2/=lib/layerzero-v2/packages/layerzero-v2/evm/protocol
+@openzeppelin/contracts/=lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/contracts/
+@openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/
