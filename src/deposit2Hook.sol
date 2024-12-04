@@ -145,38 +145,23 @@ contract Deposit2Hook is BaseHook {
 }
 
 
-     function _unlockCallback(
-    bytes calldata rawData
-) internal virtual override onlyPoolManager returns (bytes memory) {
-    EigenDockSwapParams memory data = abi.decode(
-        rawData,
-        (EigenDockSwapParams)
-    );
+     function _unlockCallback(bytes calldata rawData) internal virtual override onlyPoolManager returns (bytes memory) {
+        EigenDockSwapParams memory data = abi.decode(rawData, (EigenDockSwapParams));
 
-    // 1. Execute the swap
-    BalanceDelta delta = poolManager.swap(data.key, data.params, "");
+        // Execute swap and get delta
+        BalanceDelta delta = poolManager.swap(data.key, data.params, "");
 
-    // 2. Handle input token settlement (negative delta)
-    if (delta.amount0() < 0) {
-        data.key.currency0.settle(
-            poolManager,
-            data.staker,  // Original user pays
-            uint128(-delta.amount0()),
-            false
-        );
+        // Handle settlements for both tokens if needed
+        if (delta.amount0() < 0) {
+            data.key.currency0.settle(poolManager, data.staker, uint128(-delta.amount0()), false);
+        }
+        if (delta.amount1() < 0) {
+            data.key.currency1.settle(poolManager, data.staker, uint128(-delta.amount1()), false);
+        }
+
+        // Return delta for afterSwap hook processing
+        return abi.encode(delta);
     }
-    if (delta.amount1() < 0) {
-        data.key.currency1.settle(
-            poolManager,
-            data.staker,  // Original user pays
-            uint128(-delta.amount1()),
-            false
-        );
-    }
-
-    // 3. Return delta for afterSwap hook to handle output tokens
-    return abi.encode(delta);
-}
 
 
     function depositLstIntoStrategy(
@@ -202,6 +187,8 @@ contract Deposit2Hook is BaseHook {
 
     uint256 amount = uint256(uint128(outputAmount));
 
+  //  _verifyDepositSignature(staker, address(eigenLayerStrategy), address(outputToken), amount, expiry, signature);
+
     // Approve the StrategyManager for the output token
     outputToken.approve(address(strategyManager), amount);
 
@@ -223,6 +210,57 @@ contract Deposit2Hook is BaseHook {
     emit DepositedWithSignature(staker, address(eigenLayerStrategy), outputToken, amount, shares, expiry);
 
     return outputAmount;
+}
+
+function _verifyDepositSignature(
+    address staker,
+    address strategys,
+    address token,
+    uint256 amount,
+    uint256 expiry,
+    bytes memory signature
+) internal view {
+    if (block.timestamp > expiry) {
+        revert SignatureExpired();
+    }
+
+    // Get the nonce from strategy manager
+    uint256 nonce = strategyManager.nonces(staker);
+    
+    // Create the EIP-712 compliant hash using StrategyManager's DEPOSIT_TYPEHASH
+    bytes32 structHash = keccak256(
+        abi.encode(
+            strategyManager.DEPOSIT_TYPEHASH(),
+            staker,
+            strategys,
+            token,
+            amount,
+            nonce,
+            expiry
+        )
+    );
+    
+    // Create the final digest using StrategyManager's domain separator
+    bytes32 digest = keccak256(
+        abi.encodePacked("\x19\x01", strategyManager.domainSeparator(), structHash)
+    );
+
+    // Split signature into r, s, v components
+    if (signature.length != 65) revert InvalidSignature();
+    bytes32 r;
+    bytes32 s;
+    uint8 v;
+    assembly {
+        r := mload(add(signature, 32))
+        s := mload(add(signature, 64))
+        v := byte(0, mload(add(signature, 96)))
+    }
+
+    // Verify signature
+    address recoveredSigner = ecrecover(digest, v, r, s);
+    if (recoveredSigner == address(0) || recoveredSigner != staker) {
+        revert InvalidSignature();
+    }
 }
 
  

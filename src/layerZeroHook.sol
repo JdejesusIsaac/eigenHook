@@ -184,7 +184,7 @@ contract crossStakingHook is BaseHook {
     IStargate stargate // Stargate contract instance
   //  MessagingFee memory messagingFee // Messaging fee details (calculated from Stargate)
    // address refundAddress // Address for refunding any leftover gas
-) internal {
+) internal returns (uint256 valueToSend) {
     // Prepare the SendParam struct
     SendParam memory sendParam = SendParam({
         dstEid: destinationChainSelector,
@@ -213,6 +213,20 @@ contract crossStakingHook is BaseHook {
             address(this) // Refund address (optional)
         );
 
+       
+         
+
+        (, , OFTReceipt memory receipt) = stargate.quoteOFT(sendParam);
+        sendParam.minAmountLD = receipt.amountReceivedLD;
+
+        messagingFee = stargate.quoteSend(sendParam, false);
+        valueToSend = messagingFee.nativeFee;
+
+        if (stargate.token() == address(0x0)) {
+            valueToSend += sendParam.amountLD;
+        }
+
+       
     // Optionally emit an event or handle the result if needed
    
 }

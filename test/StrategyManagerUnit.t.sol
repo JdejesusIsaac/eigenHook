@@ -82,7 +82,7 @@ contract StrategyManagerUnitTests is EigenLayerUnitTestSetup, IStrategyManagerEv
     address initialOwner = address(this);
     uint256 public privateKey = 111111;
 
-    address depositor = cheats.addr(privateKey);
+    address depositor =  cheats.addr(privateKey);
    
     address constant dummyAdmin = address(uint160(uint256(keccak256("DummyAdmin"))));
 
@@ -365,9 +365,9 @@ IERC20(Currency.unwrap(currency1)).approve(address(strategyManager), SWAP_AMOUNT
     uint256 expirys = block.timestamp + 1 days;
     uint256 amountToDeposit = 987158034397061298;
 
-     cheats.prank(depositor);
-        ERC1271WalletMock wallet = new ERC1271WalletMock(depositor);
-        depositor = address(wallet);
+   //  cheats.prank(depositor);
+   //     ERC1271WalletMock wallet = new ERC1271WalletMock(depositor);
+   //     depositor = address(wallet);
 
     // uint256 amountToDeposit = 987158034397061298;
     
@@ -423,73 +423,57 @@ IERC20(Currency.unwrap(currency1)).approve(address(strategyManager), SWAP_AMOUNT
         "Swap amount for token0 should match specified amount"
     );
 
-    uint256 newShares = strategyManager.stakerStrategyShares(depositor, dummyStrat);
+    uint256 newShares = strategyManager.stakerStrategyShares(address(depositor), dummyStrat);
     assertGt(newShares, initialShares, "No shares were minted");
     assertEq(
-        strategyManager.nonces(depositor),
+        strategyManager.nonces(address(depositor)),
         nonceBefore + 1,
         "Nonce not incremented"
     );
 }
 
-
-
-
-
-function testBasicDepositWithSignature() public {
+function testBasicDepositWithSignature1() public {
     uint256 amount = 1e18;
     bool zeroForOne = true;
     int256 amountSpecified = -int256(amount);
-    uint256 expirys = block.timestamp + 1 days;
+    uint256 expiry = block.timestamp + 1 days;
 
-    // Get initial states
-    uint256 nonceBefore = strategyManager.nonces(depositor);
+    // Setup wallet
+    vm.prank(depositor);
+    ERC1271WalletMock wallet = new ERC1271WalletMock(depositor);
     
-    // Create the exact digest that StrategyManager expects
-    bytes32 DEPOSIT_TYPEHASH = keccak256(
-        "Deposit(address staker,address strategy,address token,uint256 amount,uint256 nonce,uint256 expiry)"
-    );
-
+    // Mint tokens to wallet
+    MockERC20(address(dummyToken)).mint(address(wallet), amount);
+    
+    // Create signature using StrategyManager's domain separator and typehash
     bytes32 structHash = keccak256(
         abi.encode(
-            DEPOSIT_TYPEHASH,
-            depositor,
+            strategyManager.DEPOSIT_TYPEHASH(),
+            address(wallet),
             address(dummyStrat),
             address(dummyToken),
-            amount,
-            nonceBefore,
-            expirys
+            uint256(987158034397061298), // Exact amount that will be deposited
+            strategyManager.nonces(address(wallet)),
+            expiry
         )
     );
-
-    // Get domain separator from contract
-    bytes32 domainSeparator = strategyManager.domainSeparator();
     
-    // Create digest according to EIP-712
     bytes32 digestHash = keccak256(
-        abi.encodePacked(
-            "\x19\x01",
-            domainSeparator,
-            structHash
-        )
+        abi.encodePacked("\x19\x01", strategyManager.domainSeparator(), structHash)
     );
 
-    // Sign the digest with the depositor's private key
     (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, digestHash);
     bytes memory signature = abi.encodePacked(r, s, v);
 
-    // Setup token balances and approvals
-    vm.prank(depositor);
-    MockERC20(address(dummyToken)).mint(address(depositor), amount);
-    
-    vm.prank(depositor);
+    // Approve tokens
+    vm.prank(address(wallet));
     dummyToken.approve(address(strategyManager), amount);
 
     // Encode hook data
     bytes memory hookData = abi.encode(
         dummyStrat,
-        depositor,
-        expirys,
+        address(wallet),
+        expiry,
         signature
     );
 
@@ -503,14 +487,23 @@ function testBasicDepositWithSignature() public {
 
     // Verify results
     assertEq(
-        int256(swapDelta.amount0()), 
-        amountSpecified, 
-        "Swap amount for token0 should match specified amount"
+        int256(swapDelta.amount0()),
+        amountSpecified,
+        "Swap amount mismatch"
     );
 
-    uint256 newShares = strategyManager.stakerStrategyShares(depositor, dummyStrat);
-    assertGt(newShares, 0, "No shares were minted");
+    uint256 newShares = strategyManager.stakerStrategyShares(address(wallet), dummyStrat);
+    assertGt(newShares, 0, "No shares minted");
 }
+
+
+
+
+
+
+
+
+
 
 
 

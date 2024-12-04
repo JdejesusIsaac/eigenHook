@@ -14,6 +14,17 @@ import {Currency} from "v4-core/src/types/Currency.sol";
 import {CurrencySettler} from "v4-core/test/utils/CurrencySettler.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+
+//import { IPermit2 } from "@uniswap/permit2/contracts/interfaces/IPermit2.sol";
+
+
+
+
+
+
+
+
+
 import "../src/interfaces/IDelegationManager.sol";
 import "../src/interfaces/IStrategyManager.sol";
 import "../src/interfaces/IStrategy.sol";
@@ -22,6 +33,9 @@ import "../src/EigenLayer/StrategyManager.sol";
 
 
 contract EigenDock is BaseHook {
+    IPoolManager public manager;
+
+ 
    
     using PoolIdLibrary for PoolKey;
     using CurrencySettler for Currency;
@@ -38,7 +52,8 @@ contract EigenDock is BaseHook {
     address staker;        // Original user doing the swap
     IPoolManager.SwapParams params;
     bytes signature;       // Signature for strategy deposit
-    IStrategy strategy;    // Target strategy
+    IStrategy strategy; 
+    bytes hookData;   // Target strategy
 }
     // Events
     event Deposited(
@@ -54,10 +69,14 @@ contract EigenDock is BaseHook {
     error DepositFailed();
 
     constructor(
-        IPoolManager _poolManager,
+        IPoolManager _manager,
         address _strategyManager
-    ) BaseHook(_poolManager) {
+      
+
+    ) BaseHook(_manager) {
+        
         strategyManager = StrategyManager(_strategyManager);
+        manager = _manager;
     }
 
     function getHookPermissions() public pure override returns (Hooks.Permissions memory) {
@@ -113,7 +132,7 @@ contract EigenDock is BaseHook {
     );
 
     // 1. Execute the swap
-    BalanceDelta delta = poolManager.swap(data.key, data.params, "");
+    BalanceDelta delta = poolManager.swap(data.key, data.params, data.hookData);
 
     // 2. Handle input token settlement (negative delta)
     if (delta.amount0() < 0) {
@@ -142,7 +161,8 @@ contract EigenDock is BaseHook {
     PoolKey memory key,
     BalanceDelta delta,
     IStrategy eigenLayerStrategy,
-    address staker,  // Explicitly pass the original sender
+    address staker,
+      // Explicitly pass the original sender
     bool zeroForOne
 ) internal returns (int128) {
     // Determine the amount based on the swap direction
@@ -155,7 +175,7 @@ contract EigenDock is BaseHook {
 
     // Transfer stETH from the pool to this contract
    // poolManager.take(outputCurrency, address(this), uint128(outputAmount));
-   IPoolManager(msg.sender).take(outputCurrency, address(this), uint128(outputAmount));
+   outputCurrency.take(manager, address(this), uint128(outputAmount), false);
 
    // outputCurrency.settle(poolManager, originalSender, uint128(outputAmount), false);
    
@@ -193,6 +213,7 @@ contract EigenDock is BaseHook {
 
     return outputAmount;
 }
+
 
 
 

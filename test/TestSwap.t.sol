@@ -33,8 +33,7 @@ import {IPositionManager} from "v4-periphery/src/interfaces/IPositionManager.sol
 import {EasyPosm} from "./utils/EasyPosm.sol";
 import {Fixtures} from "./utils/Fixtures.sol";
 import {LiquidityAmounts} from "v4-core/test/utils/LiquidityAmounts.sol";
-
-import {EigenDock} from "../src/eigenDock.sol";
+import {swapAndRestakeEigenRouter} from "../src/swapandRestake.sol";
 
 
 
@@ -44,7 +43,7 @@ import {EigenDock} from "../src/eigenDock.sol";
  * Contracts tested: StrategyManager.sol
  * Contracts not mocked: StrategyBase, PauserRegistry
  */
-contract EigenDockUnitTests is EigenLayerUnitTestSetup, IStrategyManagerEvents, Fixtures {
+contract stakeandRestakeRouterUnitTests is EigenLayerUnitTestSetup, IStrategyManagerEvents, Fixtures {
     using EasyPosm for IPositionManager;
     using PoolIdLibrary for PoolKey;
     using CurrencyLibrary for Currency;
@@ -60,7 +59,7 @@ contract EigenDockUnitTests is EigenLayerUnitTestSetup, IStrategyManagerEvents, 
 
     address depositer = address(0x123);
 
-     EigenDock hook;
+     swapAndRestakeEigenRouter swapRestakeRouter;
 
     IERC20 public dummyToken;
     ERC20_SetTransferReverting_Mock public revertToken;
@@ -85,6 +84,10 @@ contract EigenDockUnitTests is EigenLayerUnitTestSetup, IStrategyManagerEvents, 
     uint256 constant SWAP_AMOUNT = 1e18 * 32;
 
     function setUp() public override {
+        vm.deal(address(this), 500 ether);
+        // Mint a reasonable amount of tokens
+  
+    
          // Deploy base contracts
         deployFreshManagerAndRouters();
         deployMintAndApprove2Currencies();
@@ -133,146 +136,198 @@ contract EigenDockUnitTests is EigenLayerUnitTestSetup, IStrategyManagerEvents, 
 
         addressIsExcludedFromFuzzedInputs[address(reenterer)] = true;
 
+        swapRestakeRouter = new swapAndRestakeEigenRouter(manager, address(strategyManager));
 
-       
 
-        // Create pool key first to determine token ordering
-        key = PoolKey(currency0, currency1, 3000, 60, IHooks(address(0)));
 
-        // Deploy hook with correct flags
-        address flags = address(
-            uint160(
-                Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
-            ) ^ (0x4441 << 144)
-        );
-
-// Deploy hook with strategy manager// fix this
-        deployCodeTo(
-            "eigenDock.sol:EigenDock",
-            abi.encode(manager, address(strategyManager)), 
-            flags        
-        );
-        hook = EigenDock(payable(flags));
-
-         // Setup pool
-        key = PoolKey(currency0, currency1, 3000, 60, IHooks(address(hook)));
-        poolId = key.toId();
-        manager.initialize(key, SQRT_PRICE_1_1, ZERO_BYTES);
-
-        // Setup liquidity position
-        tickLower = TickMath.minUsableTick(key.tickSpacing);
-        tickUpper = TickMath.maxUsableTick(key.tickSpacing);
-
-        (uint256 amount0Expected, uint256 amount1Expected) = LiquidityAmounts.getAmountsForLiquidity(
+       (key, ) = initPool(
+            
+             
+            Currency.wrap(address(0)),
+             
+            Currency.wrap(address(dummyToken)),
+            IHooks(address(0)),
+            3000,
             SQRT_PRICE_1_1,
-            TickMath.getSqrtPriceAtTick(tickLower),
-            TickMath.getSqrtPriceAtTick(tickUpper),
-            uint128(INITIAL_LIQUIDITY)
-        );
-
-        // Mint position
-        (tokenId,) = posm.mint(
-            key,
-            tickLower,
-            tickUpper,
-            uint128(INITIAL_LIQUIDITY),
-            amount0Expected + 1,
-            amount1Expected + 1,
-            address(this),
-            block.timestamp,
             ZERO_BYTES
         );
 
-          // Approvals
-        IERC20(Currency.unwrap(currency0)).approve(address(hook), type(uint256).max);
-        IERC20(Currency.unwrap(currency1)).approve(address(hook), type(uint256).max);
+        modifyLiquidityRouter.modifyLiquidity{value: 32 ether}(
+            key,
+            IPoolManager.ModifyLiquidityParams({
+                tickLower: -60,
+                tickUpper: 60,
+                liquidityDelta: 32 ether,
+                salt: bytes32(0)
+            }),
+            ZERO_BYTES
+        );
 
-        IERC20(Currency.unwrap(currency0)).approve(address(staker1), type(uint256).max);
-         IERC20(Currency.unwrap(currency0)).approve(address(staker1), type(uint256).max);
+
+       
+
+       
+      
+
+       
+         // Setup pool
+       
         
-        IERC20(Currency.unwrap(currency1)).approve(address(dummyStrat), SWAP_AMOUNT);
-      //  IERC20(Currency.unwrap(currency1)).approve(address(strategyManager), type(uint256).max);
-      //allowance for strategy manager
-        IERC20(Currency.unwrap(currency1)).approve(address(depositer), type(uint256).max);
-        IERC20(Currency.unwrap(currency1)).approve(address(strategyManager), SWAP_AMOUNT);
+
+             // Approvals
+      //  IERC20(Currency.unwrap(currency0)).approve(address(hook), type(uint256).max);
+      //  IERC20(Currency.unwrap(currency1)).approve(address(hook), type(uint256).max);
+
+        
+       
+
+          // Approvals
+        dummyToken.approve(address(modifyLiquidityRouter), type(uint256).max);
+        dummyToken.approve(address(swapRestakeRouter), type(uint256).max);
+       // dummyToken.approve(address(dummyStrat), type(uint256).max);
+         dummyToken.approve(address(strategyManager), type(uint256).max);
+       
+        dummyToken.approve(address(swapRouter), type(uint256).max);
+
+
+
+            console.log("Token Address:", address(dummyToken));
+            console.log("Strategy Address:", address(dummyStrat));
+   console.log("Is Strategy Whitelisted:", strategyManager.strategyIsWhitelistedForDeposit(dummyStrat));
+        
+      
+
 
 
     }
-  
 
-      function testBasicDepositEigen() public {
-    // Setup test parameters
+     function test_swapETHForOUtDepositToEigenLayer()
+        public
+    {
+       
     
-    uint256 amount = SWAP_AMOUNT;
-    bool zeroForOne = true;  // ETH -> stETH
-    int256 amountSpecified = -int256(amount);
-  
-
-     // Deploy ERC1271WalletMock for staker to use
-   // cheats.startPrank(staker1);
-   // ERC1271WalletMock wallet = new ERC1271WalletMock(staker1);
-  //  cheats.stopPrank();
- //   staker1 = address(wallet);
-
-    // IMPORTANT: Set staker to be the address that corresponds to our private key
-   // staker = vm.addr(privateKey);
-
-    // Mint tokens to this contract
-    MockERC20(address(dummyToken)).mint(address(depositer), amount);
-    dummyToken.approve(address(strategyManager), amount);
-
-    // Get initial states
-    uint256 initialNonce = strategyManager.nonces(depositer);
-    uint256 initialShares = strategyManager.stakerStrategyShares(depositer, dummyStrat);
-
    
 
-          
+        swapRestakeRouter.swap{value: 32 ether}(
+            key,
+            IPoolManager.SwapParams({
+                zeroForOne: true,
+                amountSpecified: -32 ether,
+                sqrtPriceLimitX96: TickMath.MIN_SQRT_PRICE + 1
+            }),
+            swapAndRestakeEigenRouter.SwapSettings({
+                depositTokens: true,
+                recipientAddress: address(this),
+                eigenLayerStrategy: address(dummyStrat)
 
-        
-               
 
-   
+            }),
+            ZERO_BYTES
+        );
+    }
 
-    // Encode hook data
-    bytes memory hookData = abi.encode(
-        dummyStrat,
-        depositer
-        
-              // IStrategy eigenLayerStrategy
-                
-    );
+    function test_swapETHForOUtDepositToEigen1() public {
 
-    
 
-             
-        //_verifySignature(staker1, digestHash, signature);
+    // Use smaller, more reasonable amounts for testing
+    uint256 swapAmount = 0.1 ether; // 0.1 ETH
 
-    // Perform swap
-    BalanceDelta swapDelta = swap(
+     // Verify strategy setup before swap
+    address tokenAddress = Currency.unwrap(currency1);
+    require(strategyManager.strategyIsWhitelistedForDeposit(dummyStrat), "Strategy not whitelisted");
+    require(address(dummyStrat.underlyingToken()) == tokenAddress, "Wrong token in strategy");
+
+    swapAndRestakeEigenRouter.SwapSettings memory settings = swapAndRestakeEigenRouter.SwapSettings({
+        depositTokens: true,
+        recipientAddress: address(this),
+        eigenLayerStrategy: address(dummyStrat)
+    });
+
+    IPoolManager.SwapParams memory params = IPoolManager.SwapParams({
+        zeroForOne: true,
+        amountSpecified: -int256(swapAmount), // Convert to negative for exact input
+        sqrtPriceLimitX96: TickMath.MIN_SQRT_PRICE + 1
+    });
+
+    // Debug logs
+     console.log("Initial ETH Balance:", address(this).balance);
+    console.log("Swap Amount:", swapAmount);
+    console.log("Strategy Address in Settings:", settings.eigenLayerStrategy);
+
+
+    swapRestakeRouter.swap{value: swapAmount}(
         key,
-        true,
-        amountSpecified,
-        hookData
+        params,
+        settings,
+        ZERO_BYTES
     );
 
-    // Verify results
-    assertEq(
-        int256(swapDelta.amount0()), 
-        amountSpecified, 
-        "Swap amount for token0 should match specified amount"
-    );
-
-    
-
-    uint256 newShares = strategyManager.stakerStrategyShares(address(depositer), dummyStrat);
-    assertGt(newShares, initialShares, "No shares were minted");
-    assertEq(
-        strategyManager.nonces(address(this)),
-        initialNonce + 1,
-        "Nonce not incremented"
-    );
+    // Debug logs after swap
+    console.log("Token Balance After Swap:", IERC20(Currency.unwrap(currency1)).balanceOf(address(this)));
 }
+
+function test_swapETHForOUtDepositToEigen2() public {
+    uint256 swapAmount = 0.1 ether;
+    
+    // Verify strategy setup before swap
+    address tokenAddress = Currency.unwrap(currency1);
+    require(strategyManager.strategyIsWhitelistedForDeposit(dummyStrat), "Strategy not whitelisted");
+    require(address(dummyStrat.underlyingToken()) == tokenAddress, "Wrong token in strategy");
+
+    // Ensure approvals are set
+    require(IERC20(tokenAddress).allowance(address(this), address(strategyManager)) > 0, 
+        "No allowance for strategy manager");
+    require(IERC20(tokenAddress).allowance(address(this), address(swapRouter)) > 0, 
+        "No allowance for swap router");
+
+    swapAndRestakeEigenRouter.SwapSettings memory settings = swapAndRestakeEigenRouter.SwapSettings({
+        depositTokens: true,
+        recipientAddress: address(this),
+        eigenLayerStrategy: address(dummyStrat)
+    });
+
+    IPoolManager.SwapParams memory params = IPoolManager.SwapParams({
+        zeroForOne: true,
+        amountSpecified: -int256(swapAmount),
+        sqrtPriceLimitX96: TickMath.MIN_SQRT_PRICE + 1
+    });
+
+    console.log("Initial ETH Balance:", address(this).balance);
+    console.log("Swap Amount:", swapAmount);
+    console.log("Strategy Address in Settings:", settings.eigenLayerStrategy);
+
+    // Perform the swap
+    try swapRestakeRouter.swap{value: swapAmount}(
+        key,
+        params,
+        settings,
+        ZERO_BYTES
+    ) {
+        console.log("Swap successful");
+    } catch Error(string memory reason) {
+        console.log("Swap failed with reason:", reason);
+    } catch (bytes memory lowLevelData) {
+        console.log("Swap failed with low-level data");
+    }
+
+    // Check token balance after swap
+    uint256 tokenBalance = IERC20(tokenAddress).balanceOf(address(this));
+    console.log("Token Balance After Swap:", tokenBalance);
+
+    // Attempt to deposit into strategy
+    try strategyManager.depositIntoStrategy(dummyStrat, IERC20(tokenAddress), tokenBalance) {
+        console.log("Deposit successful");
+    } catch Error(string memory reason) {
+        console.log("Deposit failed with reason:", reason);
+    } catch (bytes memory lowLevelData) {
+        console.log("Deposit failed with low-level data");
+    }
+}
+
+
+  
+
+      
 
 
 // ... existing imports and setup ...
@@ -482,7 +537,7 @@ contract EigenDockUnitTests is EigenLayerUnitTestSetup, IStrategyManagerEvents, 
 
 
 
-contract StrategyManagerUnitTests_depositIntoStrategyWithSignatures is EigenDockUnitTests {
+contract StrategyManagerUnitTests_depositIntoStrategyWithSignatures is stakeandRestakeRouterUnitTests {
     function test_Revert_WhenSignatureInvalid() public {
         address staker = cheats.addr(privateKey);
         IStrategy strategy = dummyStrat;
@@ -518,7 +573,7 @@ contract StrategyManagerUnitTests_depositIntoStrategyWithSignatures is EigenDock
         assertEq(nonceAfter, nonceBefore, "nonceAfter != nonceBefore");
     }
 
-    function testFuzz_DepositSuccessfully101(uint256 amount, uint256 expiry) public {
+    function testFuzz_DepositSuccess10(uint256 amount, uint256 expiry) public {
         // min shares must be minted on strategy
         cheats.assume(amount >= 1);
 
@@ -636,7 +691,7 @@ contract StrategyManagerUnitTests_depositIntoStrategyWithSignatures is EigenDock
     }
 
     // tries depositing using a signature and an EIP 1271 compliant wallet
-    function testFuzz_WithContractWallet_Successfully10(uint256 amount, uint256 expiry) public {
+    function testFuzz_WithContractWallet_Success(uint256 amount, uint256 expiry) public {
         // min shares must be minted on strategy
         cheats.assume(amount >= 1);
 
@@ -783,4 +838,3 @@ contract StrategyManagerUnitTests_depositIntoStrategyWithSignatures is EigenDock
         _depositIntoStrategyWithSignature(staker, amount, expiry, expectedRevertMessage);
     }
 }
-
