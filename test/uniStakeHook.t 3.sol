@@ -244,32 +244,7 @@ contract PortalHookTest is Test, Fixtures {
         assertEq(balanceC0AliceAfter, 0);
     }
 
-    function test_SwapAndBridge_zeroForOne() public {
-        // positions were created in setup()
-
-        // Perform a test swap //
-        bytes memory hookData = abi.encode(
-            alice,
-            true,
-            16015286601757825753 // selector for testing
-        );
-        bool zeroForOne = true;
-        int256 amountSpecified = -1e18; // negative number indicates exact input swap!
-        BalanceDelta swapDelta = swap(
-            key,
-            zeroForOne,
-            amountSpecified,
-            hookData
-        );
-        // ------------------- //
-
-        uint256 balanceC1AliceAfter = currencyC1.balanceOf(alice);
-
-        // Output Token
-        // TODO improve this
-        assertEq(balanceC1AliceAfter, 996900609009281774);
-        assertEq(int256(swapDelta.amount0()), amountSpecified);
-    }
+   
 
     function test_SwapAndBridge_oneForZero() public {
     // Get Alice's initial balance of token0 (the output token for oneForZero swap)

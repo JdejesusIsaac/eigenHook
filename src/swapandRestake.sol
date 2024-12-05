@@ -10,6 +10,7 @@ import {CurrencySettler} from "v4-core/test/utils/CurrencySettler.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {TransientStateLibrary} from "v4-core/src/libraries/TransientStateLibrary.sol";
+import {IHooks} from "v4-core/src/interfaces/IHooks.sol";
 
 
 
@@ -58,7 +59,14 @@ contract swapAndRestakeEigenRouter  {
     );
 
      mapping(address => IStrategy) public tokenToStrategy;
-     
+
+     PoolKey public specificPoolKey;
+
+     // Define the specific pool you want to enforce
+    // Define the specific pool you want to enforce
+   
+
+
 
      constructor(
         IPoolManager _manager,
@@ -75,7 +83,37 @@ contract swapAndRestakeEigenRouter  {
      */
     function addTokenStrategyMapping(address token, IStrategy strategy) external  {
         tokenToStrategy[token] = strategy;
+     
+
+
     }
+
+    function setSpecificPool(
+    Currency _currency0,
+    Currency _currency1,
+    uint24 _fee,
+    int24 _tickSpacing,
+    IHooks _hooks
+) external {
+    // Optional: Add access control if needed
+    // require(msg.sender == owner, "Not authorized");
+
+    // Ensure currencies are in the correct order
+    require(
+        Currency.unwrap(_currency0) < Currency.unwrap(_currency1),
+        "Currencies must be sorted"
+    );
+
+    specificPoolKey = PoolKey({
+        currency0: _currency0,
+        currency1: _currency1,
+        fee: _fee,
+        tickSpacing: _tickSpacing,
+        hooks: _hooks
+    });
+}
+
+   
 
 
    function swap(
@@ -86,12 +124,23 @@ contract swapAndRestakeEigenRouter  {
 ) external payable returns (BalanceDelta delta) {
     // Add input validation
     if (settings.depositTokens) {
+
+         // Ensure the swap uses the specific pool
+         require(
+            keccak256(abi.encode(key)) == keccak256(abi.encode(specificPoolKey)),
+            "Invalid pool key"
+        );
+
+
         Currency outputToken = params.zeroForOne ? key.currency1 : key.currency0;
         // Fix: Use Currency.unwrap() to check if it's native ETH
         address tokenAddress = Currency.unwrap(outputToken);
         if (tokenAddress != address(0)) { // address(0) represents native ETH
             IStrategy strategy = tokenToStrategy[tokenAddress];
             if (address(strategy) == address(0)) revert TokenCannotBeDeposited();
+
+
+             
         }
     }
 
@@ -147,7 +196,7 @@ contract swapAndRestakeEigenRouter  {
         }
 
         if (deltaAfter0 > 0) {
-            _take(
+            depositLSTIntoStrategy(
                 data.key.currency0,
                 data.settings.recipientAddress,
                 uint256(deltaAfter0),
@@ -157,7 +206,7 @@ contract swapAndRestakeEigenRouter  {
         }
 
         if (deltaAfter1 > 0) {
-            _take(
+            depositLSTIntoStrategy(
                 data.key.currency1,
                 data.settings.recipientAddress,
                 uint256(deltaAfter1),
@@ -169,7 +218,7 @@ contract swapAndRestakeEigenRouter  {
         return abi.encode(delta);
     }
 
-    function _take(
+    function depositLSTIntoStrategy(
         Currency currency,
         address recipient,
         uint256 amount,

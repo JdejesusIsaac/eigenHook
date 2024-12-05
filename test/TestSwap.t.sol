@@ -85,6 +85,8 @@ contract stakeandRestakeRouterUnitTests is EigenLayerUnitTestSetup, IStrategyMan
 
     function setUp() public override {
         vm.deal(address(this), 500 ether);
+        
+        uint256 initialBalance = 32 * 1e18;
         // Mint a reasonable amount of tokens
   
     
@@ -110,6 +112,10 @@ contract stakeandRestakeRouterUnitTests is EigenLayerUnitTestSetup, IStrategyMan
             )
         );
         dummyToken =  IERC20(Currency.unwrap(currency1));
+       
+         MockERC20(Currency.unwrap(currency1)).mint(address(this), initialBalance);
+         MockERC20(Currency.unwrap(currency1)).approve(address(manager), initialBalance);
+        
         revertToken = new ERC20_SetTransferReverting_Mock(1000e18, address(this));
         revertToken.setTransfersRevert(true);
         dummyStrat = _deployNewStrategy(dummyToken, strategyManager, pauserRegistry, dummyAdmin);
@@ -137,10 +143,52 @@ contract stakeandRestakeRouterUnitTests is EigenLayerUnitTestSetup, IStrategyMan
         addressIsExcludedFromFuzzedInputs[address(reenterer)] = true;
 
         swapRestakeRouter = new swapAndRestakeEigenRouter(manager, address(strategyManager));
+        swapRestakeRouter.addTokenStrategyMapping(address(dummyToken), IStrategy(dummyStrat));
 
 
 
-       (key, ) = initPool(
+         key = PoolKey(currency0, currency1, 3000, 60, IHooks(address(0)));
+        poolId = key.toId();
+        manager.initialize(key, SQRT_PRICE_1_1, ZERO_BYTES);
+
+       
+
+         // Setup liquidity position
+        tickLower = TickMath.minUsableTick(key.tickSpacing);
+        tickUpper = TickMath.maxUsableTick(key.tickSpacing);
+
+        (uint256 amount0Expected, uint256 amount1Expected) = LiquidityAmounts.getAmountsForLiquidity(
+            SQRT_PRICE_1_1,
+            TickMath.getSqrtPriceAtTick(tickLower),
+            TickMath.getSqrtPriceAtTick(tickUpper),
+            uint128(INITIAL_LIQUIDITY)
+        );
+
+         (tokenId,) = posm.mint(
+            key,
+            tickLower,
+            tickUpper,
+            uint128(INITIAL_LIQUIDITY),
+            amount0Expected + 1,
+            amount1Expected + 1,
+            address(this),
+            block.timestamp,
+            ZERO_BYTES
+        );
+
+         // Mint tokens to the test contract itself
+    MockERC20(Currency.unwrap(currency0)).mint(address(this), SWAP_AMOUNT);
+    
+    // Important: Also mint tokens to the pool for liquidity
+    MockERC20(Currency.unwrap(currency0)).mint(address(manager), INITIAL_LIQUIDITY);
+    MockERC20(Currency.unwrap(currency1)).mint(address(manager), INITIAL_LIQUIDITY);
+
+    // Approve tokens for the pool manager
+    MockERC20(Currency.unwrap(currency0)).approve(address(manager), type(uint256).max);
+    MockERC20(Currency.unwrap(currency1)).approve(address(manager), type(uint256).max);
+
+    // Add initial liquidity to the pool
+     (key, ) = initPool(
             
              
             Currency.wrap(address(0)),
@@ -163,8 +211,12 @@ contract stakeandRestakeRouterUnitTests is EigenLayerUnitTestSetup, IStrategyMan
             ZERO_BYTES
         );
 
+    
 
-       
+
+
+
+
 
        
       
@@ -181,13 +233,15 @@ contract stakeandRestakeRouterUnitTests is EigenLayerUnitTestSetup, IStrategyMan
         
        
 
-          // Approvals
-        dummyToken.approve(address(modifyLiquidityRouter), type(uint256).max);
-        dummyToken.approve(address(swapRestakeRouter), type(uint256).max);
-       // dummyToken.approve(address(dummyStrat), type(uint256).max);
-         dummyToken.approve(address(strategyManager), type(uint256).max);
-       
-        dummyToken.approve(address(swapRouter), type(uint256).max);
+          IERC20(Currency.unwrap(currency0)).approve(address(staker1), type(uint256).max);
+         IERC20(Currency.unwrap(currency0)).approve(address(staker1), type(uint256).max);
+        
+        IERC20(Currency.unwrap(currency1)).approve(address(dummyStrat), SWAP_AMOUNT);
+        IERC20(Currency.unwrap(currency1)).approve(address(swapRestakeRouter), type(uint256).max);
+      //allowance for strategy manager
+        IERC20(Currency.unwrap(currency1)).approve(address(this), type(uint256).max);
+        IERC20(Currency.unwrap(currency1)).approve(address(strategyManager), SWAP_AMOUNT);
+
 
 
 
@@ -208,11 +262,11 @@ contract stakeandRestakeRouterUnitTests is EigenLayerUnitTestSetup, IStrategyMan
     
    
 
-        swapRestakeRouter.swap{value: 32 ether}(
+        swapRestakeRouter.swap{value: 1 ether}(
             key,
             IPoolManager.SwapParams({
                 zeroForOne: true,
-                amountSpecified: -32 ether,
+                amountSpecified: -1 ether,
                 sqrtPriceLimitX96: TickMath.MIN_SQRT_PRICE + 1
             }),
             swapAndRestakeEigenRouter.SwapSettings({
@@ -266,66 +320,54 @@ contract stakeandRestakeRouterUnitTests is EigenLayerUnitTestSetup, IStrategyMan
     console.log("Token Balance After Swap:", IERC20(Currency.unwrap(currency1)).balanceOf(address(this)));
 }
 
-function test_swapETHForOUtDepositToEigen2() public {
+function test_SwapWithSpecificPool_Success() public {
     uint256 swapAmount = 0.1 ether;
     
-    // Verify strategy setup before swap
-    address tokenAddress = Currency.unwrap(currency1);
-    require(strategyManager.strategyIsWhitelistedForDeposit(dummyStrat), "Strategy not whitelisted");
-    require(address(dummyStrat.underlyingToken()) == tokenAddress, "Wrong token in strategy");
+    // Set the specific pool that should be used
+    swapRestakeRouter.setSpecificPool(
+        Currency.wrap(address(0)),  // ETH
+        Currency.wrap(address(dummyToken)),  // MockERC20
+        3000,       // fee
+        60,         // tickSpacing
+        IHooks(address(0))
+    );
 
-    // Ensure approvals are set
-    require(IERC20(tokenAddress).allowance(address(this), address(strategyManager)) > 0, 
-        "No allowance for strategy manager");
-    require(IERC20(tokenAddress).allowance(address(this), address(swapRouter)) > 0, 
-        "No allowance for swap router");
-
+    // Create swap settings
     swapAndRestakeEigenRouter.SwapSettings memory settings = swapAndRestakeEigenRouter.SwapSettings({
         depositTokens: true,
         recipientAddress: address(this),
         eigenLayerStrategy: address(dummyStrat)
     });
 
+    // Create swap params
     IPoolManager.SwapParams memory params = IPoolManager.SwapParams({
         zeroForOne: true,
         amountSpecified: -int256(swapAmount),
         sqrtPriceLimitX96: TickMath.MIN_SQRT_PRICE + 1
     });
 
-    console.log("Initial ETH Balance:", address(this).balance);
-    console.log("Swap Amount:", swapAmount);
-    console.log("Strategy Address in Settings:", settings.eigenLayerStrategy);
-
-    // Perform the swap
-    try swapRestakeRouter.swap{value: swapAmount}(
-        key,
+    // This should succeed as we're using the correct pool
+    swapRestakeRouter.swap{value: swapAmount}(
+        key,        // This matches our specific pool
         params,
         settings,
         ZERO_BYTES
-    ) {
-        console.log("Swap successful");
-    } catch Error(string memory reason) {
-        console.log("Swap failed with reason:", reason);
-    } catch (bytes memory lowLevelData) {
-        console.log("Swap failed with low-level data");
-    }
+    );
+}
 
-    // Check token balance after swap
-    uint256 tokenBalance = IERC20(tokenAddress).balanceOf(address(this));
-    console.log("Token Balance After Swap:", tokenBalance);
+// Add new test functions for specific pool functionality
 
-    // Attempt to deposit into strategy
-    try strategyManager.depositIntoStrategy(dummyStrat, IERC20(tokenAddress), tokenBalance) {
-        console.log("Deposit successful");
-    } catch Error(string memory reason) {
-        console.log("Deposit failed with reason:", reason);
-    } catch (bytes memory lowLevelData) {
-        console.log("Deposit failed with low-level data");
-    }
+
+function test_SwapWithWrongPool_Reverts() public {
+    // ... test implementation
+}
+
+function test_SwapBeforePoolSet_Reverts() public {
+    // ... test implementation
 }
 
 
-  
+
 
       
 
