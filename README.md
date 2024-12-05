@@ -1,7 +1,7 @@
 
 ###  DepositTo🦄
 
-The depositTo project is a smart contract designed to integrate Uniswap v4 hooks with EigenLayer, facilitating the automatic deposit of LST's into a  EigenLayer strategy and delegating staked assets to operators within the EigenLayer ecosystem. 
+The depositTo project is a smart contract designed to integrate Uniswap v4  with EigenLayer, facilitating the automatic deposit of LST's into a  EigenLayer strategy and delegating staked assets to operators within the EigenLayer ecosystem. 
 
 The delegateToHook aims to streamline the process of managing stETH (lst) assets by automating key operations post-swap.
 
@@ -18,7 +18,7 @@ The delegateToHook aims to streamline the process of managing stETH (lst) assets
 
 ### Contract Functions
 
-afterSwap()
+Swap()
 * Triggered after a swap operation.
 * Calls depositStETHIntoStrategy to deposit stETH into a strategy.
 * Returns the function selector and output amount.
@@ -45,7 +45,7 @@ delegateToOperator() v2
     * If the swap involves ETH to stETH or (lst), the afterSwap hook is triggered.
       
 2. Deposit into Strategy:
-    * The afterSwap function calls depositStETHIntoStrategy.
+    * The Swap function calls depositStETHIntoStrategy.
     * The contract calculates the amount of stETH received and deposits it into a strategy using the StrategyManager.
     * A Deposited event is emitted to log the transaction details.
       
