@@ -1,41 +1,28 @@
 
-###  DepositTo🦄
+###  EigenDock🦄
 
-The depositTo project is a smart contract designed to integrate Uniswap v4  with EigenLayer, facilitating the automatic deposit of LST's into a  EigenLayer strategy and delegating staked assets to operators within the EigenLayer ecosystem. 
 
-The delegateToHook aims to streamline the process of managing stETH (lst) assets by automating key operations post-swap.
-
+EigenDock is a smart contract protocol that seamlessly integrates Uniswap v4 with EigenLayer, enabling automated cross-chain LST (Liquid Staking Token) deposits and staking. The protocol leverages Uniswap v4 Hooks and Chainlink CCIP for a streamlined cross-chain staking experience.
 
 
 
-### Key Components
 
-* StrategyManager: Handles deposits into various strategies.
-* STETH: Utilizes a hardcoded address for the stETH token.
- * DelegationManager: Manages the delegation of staked assets. v2
+### Architecture/Key Components
 
+ **SwapAndRestakeEigenRouter**
 
+ Manages Uniswap v4 swaps
+ 
+Handles direct deposits into EigenLayer strategies
 
-### Contract Functions
+Enforces specific pool requirements
 
-Swap()
-* Triggered after a swap operation.
-* Calls depositStETHIntoStrategy to deposit stETH into a strategy.
-* Returns the function selector and output amount.
+Manages token-to-strategy mappings
 
 
-depositStETHIntoStrategy()
-* Deposits stETH into a specified strategy.
-* Calculates the output amount based on swap direction.
-* Approves and deposits the output token into the strategy.
-* Emits a Deposited event.
+ **UniStakeV1 Hook**
+   
 
-
-delegateToOperator() v2
-* Delegates staked assets to a specified operator.
-* Requires the operator's address, a signature, expiry, and a salt value.
-* Constructs a SignatureWithExpiry structure to authorize the delegation.
-* Utilizes the DelegationManager to finalize the delegation process.
 
 
 ### User Flow
@@ -49,9 +36,7 @@ delegateToOperator() v2
     * The contract calculates the amount of stETH received and deposits it into a strategy using the StrategyManager.
     * A Deposited event is emitted to log the transaction details.
       
-3. Delegation to Operator:v2
-    * Users can call delegateToOperator to delegate their staked assets.
-    * This requires providing the necessary authorization details, including a valid signature.
+
 
 
 
