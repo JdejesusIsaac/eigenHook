@@ -23,6 +23,8 @@ EigenDock is a smart contract protocol that seamlessly integrates Uniswap v4 wit
 
 
  
+
+
  
   **UniStakeV1 Hook**
   
@@ -47,10 +49,12 @@ Automatic strategy integration
 Configurable deposit settings
 
 
+
 2. Cross-Chain Capabilities
 CCIP-powered token bridging
 Native and LINK fee support
 Secure message passing
+
 
 
 3. Flexible Strategy Management
@@ -65,14 +69,38 @@ Automated share calculation
 
 ### User Flow
 
-1. Swap Execution:
-    * Users initiate a swap on Uniswap v4.
-    * If the swap involves ETH to stETH or (lst), the afterSwap hook is triggered.
-      
-2. Deposit into Strategy:
-    * The Swap function calls depositStETHIntoStrategy.
-    * The contract calculates the amount of stETH received and deposits it into a strategy using the StrategyManager.
-    * A Deposited event is emitted to log the transaction details.
+**Local Staking Flow**
+
+
+1. User initiates swap with depositTokens: true
+
+2. Swap executes through Uniswap v4
+
+3. Output tokens automatically deposited into EigenLayer
+
+4. User receives strategy shares
+
+
+
+
+
+
+**Cross-Chain Staking Flow**
+
+
+1. User initiates swap with isBridgeTx: true
+
+2. Swap executes through Uniswap v4
+
+3. Hook captures output tokens
+
+4. Tokens bridged via CCIP to destination chain
+
+5. User receives tokens on target chain
+
+
+
+
       
 
 
