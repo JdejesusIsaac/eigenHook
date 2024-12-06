@@ -15,7 +15,13 @@ Key Components & Architecture
 
 1. SwapAndRestakeEigenRouter
 
+
+
+
 Core Responsibilities:
+
+
+
 
 
 Manages Uniswap v4 swaps.
@@ -29,6 +35,8 @@ Handles token-to-strategy mappings for dynamic staking.
 2. UniStakeV1 Hook
 
 Core Responsibilities:
+
+
 
 
 Implements Uniswap v4 Hook interface for enhanced functionality.
@@ -46,12 +54,20 @@ Processes post-swap operations and handles bridge transactions.
 1. Unified Swap & Stake
 
 
+
+
+
 Single-transaction swaps and deposits.
 Automatic integration with EigenLayer strategies.
 Configurable deposit settings for enhanced flexibility.
 
 
+
+
+
 2. Cross-Chain Capabilities
+
+
 
 
 
@@ -60,7 +76,12 @@ Support for native and LINK fees for enhanced accessibility.
 Secure and reliable message passing for multi-chain applications.
 
 
+
+
 3. Flexible Strategy Management
+
+
+
 
 
 Dynamic token-to-strategy mapping for adaptive staking.
