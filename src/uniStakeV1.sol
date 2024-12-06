@@ -28,7 +28,9 @@ import "forge-std/console.sol";
 // Find alternative since this seems test library
 import {CurrencySettler} from "v4-core/test/utils/CurrencySettler.sol";
 
-contract uniStakeV1 is BaseHook {
+error UniStakeV1__NotAllowedToken(address _tokenAddress);
+
+contract UniStakeV1 is BaseHook {
     using PoolIdLibrary for PoolKey;
     using CurrencySettler for Currency;
 
@@ -48,6 +50,14 @@ contract uniStakeV1 is BaseHook {
     // a single hook contract should be able to service multiple pools
     // ---------------------------------------------------------------
 
+    // LSDs 
+    address immutable public stETH; 
+    address immutable public eETH;
+    address immutable public rETH;
+    address immutable public WETH;
+
+    mapping(address => bool) public allowedTokens;
+
     // CCIP
     address immutable ccipRouter;
     address immutable linkToken;
@@ -66,7 +76,12 @@ contract uniStakeV1 is BaseHook {
     );
     event MessageSent(bytes32 messageId);
 
-    
+    modifier onlyLstToken(address _token) {
+        if(!allowedTokens[_token]) {
+            revert UniStakeV1__NotAllowedToken(_token);
+        }
+        _;
+    }
 
     constructor(
         IPoolManager _poolManager,
@@ -75,6 +90,10 @@ contract uniStakeV1 is BaseHook {
     ) BaseHook(_poolManager) {
         ccipRouter = _router;
         linkToken = _link;
+        allowedTokens[stETH] = true; 
+        allowedTokens[eETH] = true; 
+        allowedTokens[rETH] = true;
+        allowedTokens[WETH] = true;
     }
 
     function getHookPermissions()
