@@ -39,7 +39,7 @@ EigenDock is a smart contract protocol that seamlessly integrates Uniswap v4 wit
 
 
 
-###Key Features
+### Key Features
 
 1. Unified Swap & Stake
 Single-transaction swaps and deposits
