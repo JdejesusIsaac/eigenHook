@@ -11,6 +11,9 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {TransientStateLibrary} from "v4-core/src/libraries/TransientStateLibrary.sol";
 import {IHooks} from "v4-core/src/interfaces/IHooks.sol";
+import {Hooks} from "v4-core/src/libraries/Hooks.sol";
+import {TickMath} from "v4-core/src/libraries/TickMath.sol";
+import {PoolSwapTest} from "v4-core/src/test/PoolSwapTest.sol";
 
 
 
@@ -130,6 +133,12 @@ contract swapAndRestakeEigenRouter  {
             keccak256(abi.encode(key)) == keccak256(abi.encode(specificPoolKey)),
             "Invalid pool key"
         );
+
+
+       
+
+
+       
 
 
         Currency outputToken = params.zeroForOne ? key.currency1 : key.currency0;

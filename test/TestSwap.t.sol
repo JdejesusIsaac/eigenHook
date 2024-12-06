@@ -33,7 +33,15 @@ import {IPositionManager} from "v4-periphery/src/interfaces/IPositionManager.sol
 import {EasyPosm} from "./utils/EasyPosm.sol";
 import {Fixtures} from "./utils/Fixtures.sol";
 import {LiquidityAmounts} from "v4-core/test/utils/LiquidityAmounts.sol";
+
+import {CCIPLocalSimulator, IRouterClient, LinkToken, BurnMintERC677Helper} from   "chainlink-local/src/ccip/CCIPLocalSimulator.sol";
+
+
+
 import {swapAndRestakeEigenRouter} from "../src/swapandRestake.sol";
+
+import {uniStakeV1} from "../src/uniStakeV1.sol";
+import {StateLibrary} from "v4-core/src/libraries/StateLibrary.sol";
 
 
 
@@ -55,39 +63,104 @@ contract stakeandRestakeRouterUnitTests is EigenLayerUnitTestSetup, IStrategyMan
 
      uint256 public PRIVATE_KEY = 111111;
 
-    address staker1 =  vm.addr(PRIVATE_KEY);
+       uint256 public privateKey = 111111;
+
+        uint256 constant INITIAL_LIQUIDITY = 100e18;
+   
+    uint256 constant SWAP_AMOUNT = 1e18 * 32;
+
+    
 
     address depositer = address(0x123);
 
+    address alice = address(0x124);
+
+    address initialOwner = address(this);
+
+    address aliceCrossChain = vm.addr(1);
+    
+    address bobCrossChain;
+    
+  
+    address constant dummyAdmin = address(uint160(uint256(keccak256("DummyAdmin"))));
+
+   //ccip
+
+     CCIPLocalSimulator public ccipLocalSimulator;
+    
+    
+    IRouterClient ccipRouter;
+    uint64 destinationChainSelector;
+    
+    BurnMintERC677Helper ccipBnMToken;
+
+    LinkToken linkToken;
+
+
+///UniStakeV1 Hook setup/ swapAndRestakeEigenRouter setup
+
+     uniStakeV1  hook;
      swapAndRestakeEigenRouter swapRestakeRouter;
 
+     PoolId poolId;
+    
+    uint256 tokenId;
+    
+    PositionConfig config;
+    
+    
+    int24 tickLower;
+    int24 tickUpper;
+
+     
+     
+
+     
+
+
+     //EigenLayer Core Contract setup
+
     IERC20 public dummyToken;
+    
     ERC20_SetTransferReverting_Mock public revertToken;
+
+    Reenterer public reenterer;
+    
     StrategyBase public dummyStrat;
     StrategyBase public dummyStrat2;
     StrategyBase public dummyStrat3;
 
-    Reenterer public reenterer;
-
-     PoolId poolId;
-    uint256 tokenId;
-    PositionConfig config;
-    int24 tickLower;
-    int24 tickUpper;
-
-    address initialOwner = address(this);
-    uint256 public privateKey = 111111;
-    address constant dummyAdmin = address(uint160(uint256(keccak256("DummyAdmin"))));
     
-    uint256 constant INITIAL_LIQUIDITY = 100e18;
+
+     
+
+
+
+    
+    
    
-    uint256 constant SWAP_AMOUNT = 1e18 * 32;
 
     function setUp() public override {
         vm.deal(address(this), 500 ether);
+        vm.deal(alice, 500 ether);
         
         uint256 initialBalance = 32 * 1e18;
         // Mint a reasonable amount of tokens
+
+
+        ccipLocalSimulator = new CCIPLocalSimulator();
+        (
+            uint64 chainSelector,
+            IRouterClient sourceRouter,
+            ,
+            ,
+            LinkToken link,
+            BurnMintERC677Helper ccipBnM, // not using this
+        ) = ccipLocalSimulator.configuration();
+
+        ccipRouter = sourceRouter;
+        destinationChainSelector = chainSelector;
+        linkToken = link;
   
     
          // Deploy base contracts
@@ -112,9 +185,28 @@ contract stakeandRestakeRouterUnitTests is EigenLayerUnitTestSetup, IStrategyMan
             )
         );
         dummyToken =  IERC20(Currency.unwrap(currency1));
+
+
        
-         MockERC20(Currency.unwrap(currency1)).mint(address(this), initialBalance);
-         MockERC20(Currency.unwrap(currency1)).approve(address(manager), initialBalance);
+       //  MockERC20(Currency.unwrap(currency1)).mint(address(this), initialBalance);
+      //   MockERC20(Currency.unwrap(currency1)).approve(address(manager), initialBalance);
+
+         // Deploy the hook to an address with the correct flags
+        address flags = address(
+            uint160(
+                Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
+            ) ^ (0x4441 << 144) // Namespace the hook to avoid collisions
+        );
+
+        deployCodeTo(
+            "uniStakeV1.sol:uniStakeV1",
+            abi.encode(manager, address(ccipRouter), address(linkToken)),
+            flags
+        );
+        hook = uniStakeV1(payable(flags));
+
+
+
         
         revertToken = new ERC20_SetTransferReverting_Mock(1000e18, address(this));
         revertToken.setTransfersRevert(true);
@@ -147,37 +239,10 @@ contract stakeandRestakeRouterUnitTests is EigenLayerUnitTestSetup, IStrategyMan
 
 
 
-         key = PoolKey(currency0, currency1, 3000, 60, IHooks(address(0)));
-        poolId = key.toId();
-        manager.initialize(key, SQRT_PRICE_1_1, ZERO_BYTES);
-
-       
-
-         // Setup liquidity position
-        tickLower = TickMath.minUsableTick(key.tickSpacing);
-        tickUpper = TickMath.maxUsableTick(key.tickSpacing);
-
-        (uint256 amount0Expected, uint256 amount1Expected) = LiquidityAmounts.getAmountsForLiquidity(
-            SQRT_PRICE_1_1,
-            TickMath.getSqrtPriceAtTick(tickLower),
-            TickMath.getSqrtPriceAtTick(tickUpper),
-            uint128(INITIAL_LIQUIDITY)
-        );
-
-         (tokenId,) = posm.mint(
-            key,
-            tickLower,
-            tickUpper,
-            uint128(INITIAL_LIQUIDITY),
-            amount0Expected + 1,
-            amount1Expected + 1,
-            address(this),
-            block.timestamp,
-            ZERO_BYTES
-        );
 
          // Mint tokens to the test contract itself
     MockERC20(Currency.unwrap(currency0)).mint(address(this), SWAP_AMOUNT);
+    MockERC20(Currency.unwrap(currency0)).mint(alice, SWAP_AMOUNT);
     
     // Important: Also mint tokens to the pool for liquidity
     MockERC20(Currency.unwrap(currency0)).mint(address(manager), INITIAL_LIQUIDITY);
@@ -187,6 +252,14 @@ contract stakeandRestakeRouterUnitTests is EigenLayerUnitTestSetup, IStrategyMan
     MockERC20(Currency.unwrap(currency0)).approve(address(manager), type(uint256).max);
     MockERC20(Currency.unwrap(currency1)).approve(address(manager), type(uint256).max);
 
+      //was address(0)
+      
+      key = PoolKey(currency0, currency1, 3000, 60, IHooks(address(hook)));
+        poolId = key.toId();
+        manager.initialize(key, SQRT_PRICE_1_1, ZERO_BYTES);
+
+    
+    
     // Add initial liquidity to the pool
      (key, ) = initPool(
             
@@ -194,11 +267,13 @@ contract stakeandRestakeRouterUnitTests is EigenLayerUnitTestSetup, IStrategyMan
             Currency.wrap(address(0)),
              
             Currency.wrap(address(dummyToken)),
-            IHooks(address(0)),
+            IHooks(address(hook)),
             3000,
             SQRT_PRICE_1_1,
             ZERO_BYTES
         );
+
+       
 
         modifyLiquidityRouter.modifyLiquidity{value: 32 ether}(
             key,
@@ -212,29 +287,6 @@ contract stakeandRestakeRouterUnitTests is EigenLayerUnitTestSetup, IStrategyMan
         );
 
     
-
-
-
-
-
-
-       
-      
-
-       
-         // Setup pool
-       
-        
-
-             // Approvals
-      //  IERC20(Currency.unwrap(currency0)).approve(address(hook), type(uint256).max);
-      //  IERC20(Currency.unwrap(currency1)).approve(address(hook), type(uint256).max);
-
-        
-       
-
-          IERC20(Currency.unwrap(currency0)).approve(address(staker1), type(uint256).max);
-         IERC20(Currency.unwrap(currency0)).approve(address(staker1), type(uint256).max);
         
         IERC20(Currency.unwrap(currency1)).approve(address(dummyStrat), SWAP_AMOUNT);
         IERC20(Currency.unwrap(currency1)).approve(address(swapRestakeRouter), type(uint256).max);
@@ -245,83 +297,24 @@ contract stakeandRestakeRouterUnitTests is EigenLayerUnitTestSetup, IStrategyMan
 
 
 
-            console.log("Token Address:", address(dummyToken));
-            console.log("Strategy Address:", address(dummyStrat));
-   console.log("Is Strategy Whitelisted:", strategyManager.strategyIsWhitelistedForDeposit(dummyStrat));
+        console.log("Token Address:", address(dummyToken));
+        console.log("Strategy Address:", address(dummyStrat));
+        console.log("Is Strategy Whitelisted:", strategyManager.strategyIsWhitelistedForDeposit(dummyStrat));
         
       
 
 
-
     }
 
-     function test_swapETHForOUtDepositToEigenLayer()
-        public
-    {
-       
-    
-   
-
-        swapRestakeRouter.swap{value: 1 ether}(
-            key,
-            IPoolManager.SwapParams({
-                zeroForOne: true,
-                amountSpecified: -1 ether,
-                sqrtPriceLimitX96: TickMath.MIN_SQRT_PRICE + 1
-            }),
-            swapAndRestakeEigenRouter.SwapSettings({
-                depositTokens: true,
-                recipientAddress: address(this),
-                eigenLayerStrategy: address(dummyStrat)
-
-
-            }),
-            ZERO_BYTES
-        );
-    }
-
-    function test_swapETHForOUtDepositToEigen1() public {
-
-
-    // Use smaller, more reasonable amounts for testing
-    uint256 swapAmount = 0.1 ether; // 0.1 ETH
-
-     // Verify strategy setup before swap
-    address tokenAddress = Currency.unwrap(currency1);
-    require(strategyManager.strategyIsWhitelistedForDeposit(dummyStrat), "Strategy not whitelisted");
-    require(address(dummyStrat.underlyingToken()) == tokenAddress, "Wrong token in strategy");
-
-    swapAndRestakeEigenRouter.SwapSettings memory settings = swapAndRestakeEigenRouter.SwapSettings({
-        depositTokens: true,
-        recipientAddress: address(this),
-        eigenLayerStrategy: address(dummyStrat)
-    });
-
-    IPoolManager.SwapParams memory params = IPoolManager.SwapParams({
-        zeroForOne: true,
-        amountSpecified: -int256(swapAmount), // Convert to negative for exact input
-        sqrtPriceLimitX96: TickMath.MIN_SQRT_PRICE + 1
-    });
-
-    // Debug logs
-     console.log("Initial ETH Balance:", address(this).balance);
-    console.log("Swap Amount:", swapAmount);
-    console.log("Strategy Address in Settings:", settings.eigenLayerStrategy);
-
-
-    swapRestakeRouter.swap{value: swapAmount}(
-        key,
-        params,
-        settings,
-        ZERO_BYTES
-    );
-
-    // Debug logs after swap
-    console.log("Token Balance After Swap:", IERC20(Currency.unwrap(currency1)).balanceOf(address(this)));
-}
-
-function test_SwapWithSpecificPool_Success() public {
+     function test_RegularSwapWithUniStakePool_Success() public {
     uint256 swapAmount = 0.1 ether;
+
+      // Perform swap with bridging enabled
+    bytes memory hookData = abi.encode(
+        alice,
+        false,
+        16015286601757825753 // selector for testing
+    );
     
     // Set the specific pool that should be used
     swapRestakeRouter.setSpecificPool(
@@ -329,13 +322,13 @@ function test_SwapWithSpecificPool_Success() public {
         Currency.wrap(address(dummyToken)),  // MockERC20
         3000,       // fee
         60,         // tickSpacing
-        IHooks(address(0))
+        IHooks(address(hook))
     );
 
     // Create swap settings
     swapAndRestakeEigenRouter.SwapSettings memory settings = swapAndRestakeEigenRouter.SwapSettings({
-        depositTokens: true,
-        recipientAddress: address(this),
+        depositTokens: false,
+        recipientAddress: address(alice),
         eigenLayerStrategy: address(dummyStrat)
     });
 
@@ -351,7 +344,98 @@ function test_SwapWithSpecificPool_Success() public {
         key,        // This matches our specific pool
         params,
         settings,
-        ZERO_BYTES
+        hookData
+    );
+}
+
+
+
+    function test_SwapNoDepositWithUniStakePool_SuccessBridgeCcip() public {
+    uint256 swapAmount = 0.1 ether;
+
+      // Perform swap with bridging enabled
+    bytes memory hookData = abi.encode(
+        alice,
+        true,
+        16015286601757825753 // selector for testing
+    );
+    
+    // Set the specific pool that should be used
+    swapRestakeRouter.setSpecificPool(
+        Currency.wrap(address(0)),  // ETH
+        Currency.wrap(address(dummyToken)),  // MockERC20
+        3000,       // fee
+        60,         // tickSpacing
+        IHooks(address(hook))
+    );
+
+    // Create swap settings
+    swapAndRestakeEigenRouter.SwapSettings memory settings = swapAndRestakeEigenRouter.SwapSettings({
+        depositTokens: false,
+        recipientAddress: address(alice),
+        eigenLayerStrategy: address(dummyStrat)
+    });
+
+    // Create swap params
+    IPoolManager.SwapParams memory params = IPoolManager.SwapParams({
+        zeroForOne: true,
+        amountSpecified: -int256(swapAmount),
+        sqrtPriceLimitX96: TickMath.MIN_SQRT_PRICE + 1
+    });
+
+    // This should succeed as we're using the correct pool
+    swapRestakeRouter.swap{value: swapAmount}(
+        key,        // This matches our specific pool
+        params,
+        settings,
+        hookData
+    );
+}
+
+    
+    
+    
+    
+     
+function test_SwapDepositToEigenLayerWithUniStakePool_Success() public {
+    uint256 swapAmount = 0.1 ether;
+
+     bytes memory hookData = abi.encode(
+        alice,
+        false,
+        16015286601757825753 // selector for testing
+    );
+
+
+    // Set the specific pool that should be used
+    swapRestakeRouter.setSpecificPool(
+        Currency.wrap(address(0)),  // ETH
+        Currency.wrap(address(dummyToken)),  // MockERC20
+        3000,       // fee
+        60,         // tickSpacing
+        IHooks(address(hook))
+    );
+
+    // Create swap settings
+    swapAndRestakeEigenRouter.SwapSettings memory settings = swapAndRestakeEigenRouter.SwapSettings({
+        depositTokens: true,
+        recipientAddress: address(alice),
+        eigenLayerStrategy: address(dummyStrat)
+    });
+
+    // Create swap params
+    IPoolManager.SwapParams memory params = IPoolManager.SwapParams({
+        zeroForOne: true,
+        amountSpecified: -int256(swapAmount),
+        sqrtPriceLimitX96: TickMath.MIN_SQRT_PRICE + 1
+    });
+
+    // This should succeed as we're using the correct pool
+    swapRestakeRouter.swap{value: swapAmount}(
+        key,        // This matches our specific pool
+        params,
+        settings,
+        hookData
     );
 }
 
