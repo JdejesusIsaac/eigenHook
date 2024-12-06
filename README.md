@@ -1,41 +1,31 @@
 
 ###  EigenDock🦄
 
+EigenDock 🦄
+Seamlessly Integrating Uniswap v4 with EigenLayer for Automated Cross-Chain LST Staking
 
-EigenDock is a smart contract protocol that seamlessly integrates Uniswap v4 with EigenLayer, enabling automated cross-chain LST (Liquid Staking Token) deposits and staking. The protocol leverages Uniswap v4 Hooks and Chainlink CCIP for a streamlined cross-chain staking experience.
+EigenDock is a next-generation smart contract protocol that combines Uniswap v4 with EigenLayer to enable automated cross-chain deposits and staking of Liquid Staking Tokens (LSTs). By leveraging Uniswap v4 Hooks and Chainlink CCIP, EigenDock provides a seamless and streamlined cross-chain staking experience.
 
 
 
 
 ### Architecture/Key Components
 
- **SwapAndRestakeEigenRouter**
+Key Components & Architecture
+
+1. SwapAndRestakeEigenRouter
+Core Responsibilities:
+Manages Uniswap v4 swaps.
+Facilitates direct deposits into EigenLayer strategies.
+Enforces specific pool requirements for efficient operations.
+Handles token-to-strategy mappings for dynamic staking.
 
 
-  Manages Uniswap v4 swaps
- 
- Handles direct deposits into EigenLayer strategies
-
- Enforces specific pool requirements
-
- Manages token-to-strategy mappings
-
-
-
- 
-
-
- 
-  **UniStakeV1 Hook**
-  
-
- Implements Uniswap v4 Hook interface
-
- Manages cross-chain bridging via CCIP
-
-Handles post-swap operations
-
-Processes bridge transactions
+2. UniStakeV1 Hook
+Core Responsibilities:
+Implements Uniswap v4 Hook interface for enhanced functionality.
+Bridges tokens across chains via Chainlink CCIP.
+Processes post-swap operations and handles bridge transactions.
 
 
 
