@@ -14,15 +14,23 @@ EigenDock is a next-generation smart contract protocol that combines Uniswap v4 
 Key Components & Architecture
 
 1. SwapAndRestakeEigenRouter
+
 Core Responsibilities:
+
+
 Manages Uniswap v4 swaps.
 Facilitates direct deposits into EigenLayer strategies.
 Enforces specific pool requirements for efficient operations.
 Handles token-to-strategy mappings for dynamic staking.
 
 
+
+
 2. UniStakeV1 Hook
+
 Core Responsibilities:
+
+
 Implements Uniswap v4 Hook interface for enhanced functionality.
 Bridges tokens across chains via Chainlink CCIP.
 Processes post-swap operations and handles bridge transactions.
