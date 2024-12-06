@@ -21,7 +21,21 @@ EigenDock is a smart contract protocol that seamlessly integrates Uniswap v4 wit
 4. Manages token-to-strategy mappings
 
 
- **UniStakeV1 Hook**
+
+ 
+ 
+  **UniStakeV1 Hook**
+  
+
+1. Implements Uniswap v4 Hook interface
+
+2. Manages cross-chain bridging via CCIP
+
+3.Handles post-swap operations
+
+4.Processes bridge transactions
+
+ 
    
 
 
