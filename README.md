@@ -41,24 +41,32 @@ Processes post-swap operations and handles bridge transactions.
 
 ### Key Features
 
- Unified Swap & Stake
-Single-transaction swaps and deposits
-Automatic strategy integration
-Configurable deposit settings
+Key Features
+
+1. Unified Swap & Stake
+
+
+Single-transaction swaps and deposits.
+Automatic integration with EigenLayer strategies.
+Configurable deposit settings for enhanced flexibility.
+
+
+2. Cross-Chain Capabilities
 
 
 
- Cross-Chain Capabilities
-CCIP-powered token bridging
-Native and LINK fee support
-Secure message passing
+CCIP-powered token bridging for smooth cross-chain interactions.
+Support for native and LINK fees for enhanced accessibility.
+Secure and reliable message passing for multi-chain applications.
 
 
+3. Flexible Strategy Management
 
- Flexible Strategy Management
-Dynamic token-to-strategy mapping
-Support for multiple LSTs
-Automated share calculation
+
+Dynamic token-to-strategy mapping for adaptive staking.
+Support for multiple Liquid Staking Tokens (LSTs).
+Automated calculation of strategy shares for user convenience.
+
 
  
    
