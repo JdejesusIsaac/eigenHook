@@ -11,13 +11,14 @@ EigenDock is a smart contract protocol that seamlessly integrates Uniswap v4 wit
 
  **SwapAndRestakeEigenRouter**
 
- Manages Uniswap v4 swaps
+
+ 1. Manages Uniswap v4 swaps
  
-Handles direct deposits into EigenLayer strategies
+2. Handles direct deposits into EigenLayer strategies
 
-Enforces specific pool requirements
+3. Enforces specific pool requirements
 
-Manages token-to-strategy mappings
+4. Manages token-to-strategy mappings
 
 
  **UniStakeV1 Hook**
