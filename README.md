@@ -1,7 +1,7 @@
 
-###  Uniswap🦄
+###  Unistake🦄
 
-Uniswap 🦄
+UniStake 🦄
 Seamlessly Integrating Uniswap v4 with EigenLayer for Automated Cross-Chain LST Staking
 
 UniStake is a next-generation smart contract protocol that combines Uniswap v4 with EigenLayer to enable automated cross-chain deposits and staking of Liquid Staking Tokens (LSTs). By leveraging Uniswap v4 Hooks and Chainlink CCIP, UniStake provides a seamless and streamlined cross-chain staking experience.
