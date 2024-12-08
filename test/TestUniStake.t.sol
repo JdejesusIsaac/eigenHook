@@ -11,7 +11,7 @@ import {BalanceDelta} from "v4-core/src/types/BalanceDelta.sol";
 import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
 import {CurrencyLibrary, Currency} from "v4-core/src/types/Currency.sol";
 import {PoolSwapTest} from "v4-core/src/test/PoolSwapTest.sol";
-import {uniStakeV1} from "../src/uniStakeV1.sol";
+import {UniStakeV1} from "../src/UniStakeV1.sol";
 import {StateLibrary} from "v4-core/src/libraries/StateLibrary.sol";
 import {PositionConfig} from "v4-periphery/src/libraries/PositionConfig.sol";
 import {SortTokens} from "v4-core/test/utils/SortTokens.sol";
@@ -48,7 +48,7 @@ contract PortalHookTest is Test, Fixtures {
     using CurrencyLibrary for Currency;
     using StateLibrary for IPoolManager;
 
-   uniStakeV1  hook;
+    UniStakeV1 hook;
     PoolId poolId;
 
     uint256 tokenId;
@@ -158,11 +158,11 @@ contract PortalHookTest is Test, Fixtures {
         );
 
         deployCodeTo(
-            "uniStakeV1.sol:uniStakeV1",
+            "UniStakeV1.sol:UniStakeV1",
             abi.encode(manager, address(ccipRouter), address(linkToken)),
             flags
         );
-        hook = uniStakeV1(payable(flags));
+        hook = UniStakeV1(payable(flags));
 
         // Create the pool
         key = PoolKey(currencyC0W, currencyC1W, 3000, 60, IHooks(hook));

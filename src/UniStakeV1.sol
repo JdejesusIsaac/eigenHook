@@ -16,6 +16,8 @@ import {LinkTokenInterface} from "@chainlink/contracts/src/v0.8/interfaces/LinkT
 import {IRouterClient} from "@chainlink/contracts-ccip/src/v0.8/ccip/interfaces/IRouterClient.sol";
 import {Client} from "@chainlink/contracts-ccip/src/v0.8/ccip/libraries/Client.sol";
 import {CCIPReceiver} from "@chainlink/contracts-ccip/src/v0.8/ccip/applications/CCIPReceiver.sol";
+import {ILido} from "./interfaces/ILido.sol";
+import {IWETH} from "./interfaces/IWETH.sol";
 import "forge-std/console.sol";
 
 
@@ -30,7 +32,8 @@ import {CurrencySettler} from "v4-core/test/utils/CurrencySettler.sol";
 
 error UniStakeV1__NotAllowedToken(address _tokenAddress);
 
-contract UniStakeV1 is BaseHook {
+contract UniStakeV1 is BaseHook, CCIPReceiver {
+    
     using PoolIdLibrary for PoolKey;
     using CurrencySettler for Currency;
 
@@ -50,11 +53,9 @@ contract UniStakeV1 is BaseHook {
     // a single hook contract should be able to service multiple pools
     // ---------------------------------------------------------------
 
-    // LSDs 
-    address immutable public stETH; 
-    address immutable public eETH;
-    address immutable public rETH;
     address immutable public WETH;
+    address immutable public stETH; 
+    address immutable public lido; 
 
     mapping(address => bool) public allowedTokens;
 
@@ -76,24 +77,23 @@ contract UniStakeV1 is BaseHook {
     );
     event MessageSent(bytes32 messageId);
 
-    modifier onlyLstToken(address _token) {
-        if(!allowedTokens[_token]) {
-            revert UniStakeV1__NotAllowedToken(_token);
-        }
-        _;
-    }
-
     constructor(
         IPoolManager _poolManager,
         address _router,
-        address _link
-    ) BaseHook(_poolManager) {
+        address _link, 
+        address _wEth, 
+        address _stEth, 
+        address _lido
+    ) BaseHook(_poolManager) CCIPReceiver(_router) {
+        
         ccipRouter = _router;
         linkToken = _link;
-        allowedTokens[stETH] = true; 
-        allowedTokens[eETH] = true; 
-        allowedTokens[rETH] = true;
+        WETH = _wEth; 
+        stETH = _stEth;
         allowedTokens[WETH] = true;
+        allowedTokens[stETH] = true; 
+        lido = _lido;
+        
     }
 
     function getHookPermissions()
@@ -115,7 +115,7 @@ contract UniStakeV1 is BaseHook {
                 beforeDonate: false,
                 afterDonate: false,
                 beforeSwapReturnDelta: false,
-                afterSwapReturnDelta: true, //
+                afterSwapReturnDelta: false, //
                 afterAddLiquidityReturnDelta: false,
                 afterRemoveLiquidityReturnDelta: false
             });
@@ -131,19 +131,22 @@ contract UniStakeV1 is BaseHook {
         if (hookData.length > 0) {
             (
                 address receiver,
+                address user,
                 bool isBridgeTx,
                 uint64 destinationChainSelector
-            ) = abi.decode(hookData, (address, bool, uint64));
+            ) = abi.decode(hookData, (address, address, bool, uint64));
 
             // TODO add more validations
             if (isBridgeTx && destinationChainSelector != 0) {
                 // TODO handle ETH
+                _isLstToken(Currency.unwrap(key.currency0));
                 // handle zeroForOne trades
                 int128 outputAmount = processBridgeSwap(
                     key,
                     delta,
                     params.zeroForOne,
                     receiver,
+                    user,
                     destinationChainSelector
                 );
                 return (BaseHook.afterSwap.selector, outputAmount);
@@ -204,6 +207,7 @@ contract UniStakeV1 is BaseHook {
         BalanceDelta delta,
         bool zeroForOne,
         address receiver,
+        address user,
         uint64 destinationChainSelector
     ) internal returns (int128) {
         int128 outputAmount = zeroForOne ? delta.amount1() : delta.amount0();
@@ -215,6 +219,7 @@ contract UniStakeV1 is BaseHook {
 
         bridgeStakingTokens(
             receiver,
+            user,
             address(outputToken),
             uint128(outputAmount),
             destinationChainSelector
@@ -224,7 +229,8 @@ contract UniStakeV1 is BaseHook {
     }
 
     function bridgeStakingTokens(
-        address receiver,
+        address receiver, // contract address
+        address user,
         address outputToken,
         uint256 outputAmount,
         uint64 destinationChainSelector
@@ -243,10 +249,11 @@ contract UniStakeV1 is BaseHook {
         tokensToSendDetails[0] = tokenToSendDetails;
 
         // bridge
+        bytes memory data = abi.encode(user);
 
         Client.EVM2AnyMessage memory message = Client.EVM2AnyMessage({
             receiver: abi.encode(receiver),
-            data: "",
+            data: data,
             tokenAmounts: tokensToSendDetails,
             extraArgs: "",
             feeToken: bridgeFeeTokenType == PayFeesIn.LINK
@@ -276,6 +283,28 @@ contract UniStakeV1 is BaseHook {
              emit MessageSent(messageId);
 
             
+        }
+    }
+
+    function _ccipReceive(Client.Any2EVMMessage memory message) internal override {
+
+        address tokenAddress = message.destTokenAmounts[0].token;
+        uint256 tokenAmount = message.destTokenAmounts[0].amount;
+        address user = abi.decode(message.data, (address));
+
+        if(tokenAmount <= 0) {
+            revert("Invalid amount");
+        }
+
+        IWETH(WETH).withdraw(tokenAmount);
+        uint256 lstTokenAmount = ILido(lido).submit{value: tokenAmount}(address(this)); 
+
+
+    }
+
+    function _isLstToken(address _token) internal view {
+        if(!allowedTokens[_token]) {
+            revert UniStakeV1__NotAllowedToken(_token);
         }
     }
 
