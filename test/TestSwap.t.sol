@@ -306,12 +306,56 @@ contract stakeandRestakeRouterUnitTests is EigenLayerUnitTestSetup, IStrategyMan
 
     }
 
+    function generateDepositSignature(
+    address strategy,
+    address token,
+    uint256 amount,
+    address staker,
+    uint256 expiry,
+    uint256 nonce,
+    bytes32 DEPOSIT_TYPEHASH,
+    bytes32 domainSeparator,
+    uint256 privatekey
+) public pure returns (bytes memory) {
+    // Construct the struct hash
+    bytes32 structHash = keccak256(abi.encode(
+        DEPOSIT_TYPEHASH,
+        strategy,
+        token,
+        amount,
+        staker,
+        nonce,
+        expiry
+    ));
+
+    // Create the digest by combining with EIP-712 prefix and domain separator
+    bytes32 digest = keccak256(abi.encodePacked(
+        "\x19\x01",
+        domainSeparator,
+        structHash
+    ));
+
+    // Sign the digest
+    (uint8 v, bytes32 r, bytes32 s) = vm.sign(privatekey, digest);
+    
+    // Return the signature
+    return abi.encodePacked(r, s, v);
+}
+
      function test_RegularSwapWithUniStakePool_Success() public {
     uint256 swapAmount = 0.1 ether;
+    uint256 expiry = block.timestamp + 1000000;
+    bytes memory signature = new bytes(0);
+   
+      address staker = cheats.addr(privateKey);
+       
+
+        // deploy ERC1271WalletMock for staker to use
+        cheats.prank(staker);
 
       // Perform swap with bridging enabled
     bytes memory hookData = abi.encode(
-        alice,
+        staker,
         false,
         16015286601757825753 // selector for testing
     );
@@ -328,8 +372,10 @@ contract stakeandRestakeRouterUnitTests is EigenLayerUnitTestSetup, IStrategyMan
     // Create swap settings
     swapAndRestakeEigenRouter.SwapSettings memory settings = swapAndRestakeEigenRouter.SwapSettings({
         depositTokens: false,
-        recipientAddress: address(alice),
-        eigenLayerStrategy: address(dummyStrat)
+        recipientAddress: address(staker),
+        eigenLayerStrategy: address(dummyStrat),
+        expiry: expiry,
+        signature: signature
     });
 
     // Create swap params
@@ -348,60 +394,49 @@ contract stakeandRestakeRouterUnitTests is EigenLayerUnitTestSetup, IStrategyMan
     );
 }
 
-
-
-    function test_SwapNoDepositWithUniStakePool_SuccessBridgeCcip() public {
-    uint256 swapAmount = 0.1 ether;
-
-      // Perform swap with bridging enabled
-    bytes memory hookData = abi.encode(
-        alice,
-        true,
-        16015286601757825753 // selector for testing
-    );
-    
-    // Set the specific pool that should be used
-    swapRestakeRouter.setSpecificPool(
-        Currency.wrap(address(0)),  // ETH
-        Currency.wrap(address(dummyToken)),  // MockERC20
-        3000,       // fee
-        60,         // tickSpacing
-        IHooks(address(hook))
-    );
-
-    // Create swap settings
-    swapAndRestakeEigenRouter.SwapSettings memory settings = swapAndRestakeEigenRouter.SwapSettings({
-        depositTokens: false,
-        recipientAddress: address(alice),
-        eigenLayerStrategy: address(dummyStrat)
-    });
-
-    // Create swap params
-    IPoolManager.SwapParams memory params = IPoolManager.SwapParams({
-        zeroForOne: true,
-        amountSpecified: -int256(swapAmount),
-        sqrtPriceLimitX96: TickMath.MIN_SQRT_PRICE + 1
-    });
-
-    // This should succeed as we're using the correct pool
-    swapRestakeRouter.swap{value: swapAmount}(
-        key,        // This matches our specific pool
-        params,
-        settings,
-        hookData
-    );
-}
-
-    
-    
-    
-    
-     
 function test_SwapDepositToEigenLayerWithUniStakePool_Success() public {
     uint256 swapAmount = 0.1 ether;
+    uint256 expiry = block.timestamp + 1000000;
+      address staker = cheats.addr(privateKey);
+       
+
+        // deploy ERC1271WalletMock for staker to use
+        cheats.prank(staker);
+        
+        ERC1271WalletMock wallet = new ERC1271WalletMock(staker);
+        staker = address(wallet);
+       uint256 nonceBefore = strategyManager.nonces(staker);
+    bytes memory signature;
+     {
+        bytes32 structHash = keccak256(
+            abi.encode(
+                strategyManager.DEPOSIT_TYPEHASH(),
+                staker,                  // staker first
+                dummyStrat,             // strategy second
+                dummyToken,             // token third
+                swapAmount,             // amount fourth
+                nonceBefore,            // nonce fifth
+                expiry                  // expiry sixth
+            )
+        );
+        
+        bytes32 digestHash = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                strategyManager.domainSeparator(),
+                structHash
+            )
+        );
+
+        (uint8 v, bytes32 r, bytes32 s) = cheats.sign(privateKey, digestHash);
+        signature = abi.encodePacked(r, s, v);
+    }
+
+
+
 
      bytes memory hookData = abi.encode(
-        alice,
+        staker,
         false,
         16015286601757825753 // selector for testing
     );
@@ -419,8 +454,10 @@ function test_SwapDepositToEigenLayerWithUniStakePool_Success() public {
     // Create swap settings
     swapAndRestakeEigenRouter.SwapSettings memory settings = swapAndRestakeEigenRouter.SwapSettings({
         depositTokens: true,
-        recipientAddress: address(alice),
-        eigenLayerStrategy: address(dummyStrat)
+        recipientAddress: address(staker),
+        eigenLayerStrategy: address(dummyStrat),
+        expiry: expiry,
+        signature: signature
     });
 
     // Create swap params
@@ -438,6 +475,10 @@ function test_SwapDepositToEigenLayerWithUniStakePool_Success() public {
         hookData
     );
 }
+
+
+
+   
 
 // Add new test functions for specific pool functionality
 

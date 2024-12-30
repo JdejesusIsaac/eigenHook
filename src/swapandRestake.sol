@@ -29,9 +29,13 @@ contract swapAndRestakeEigenRouter  {
     using CurrencySettler for Currency;
     using TransientStateLibrary for IPoolManager;
 
+
+
     IPoolManager public immutable manager;
      // Immutable state variables
      StrategyManager public strategyManager;
+   //  IStrategyManager public immutable strategyManager;
+  
 
 
      struct CallbackData {
@@ -45,7 +49,9 @@ contract swapAndRestakeEigenRouter  {
      struct SwapSettings {
         bool depositTokens;
         address recipientAddress;  
-        address eigenLayerStrategy; 
+        address eigenLayerStrategy;
+         uint256 expiry;
+        bytes  signature ;
      }
 
      
@@ -76,7 +82,8 @@ contract swapAndRestakeEigenRouter  {
         address _strategyManager
     )  {
         manager = _manager;
-        strategyManager = StrategyManager(_strategyManager);
+       // strategyManager = StrategyManager(_strategyManager);
+       strategyManager = StrategyManager(_strategyManager);
     }
 
     /**
@@ -210,6 +217,8 @@ contract swapAndRestakeEigenRouter  {
                 data.settings.recipientAddress,
                 uint256(deltaAfter0),
                 data.settings.eigenLayerStrategy,
+                data.settings.expiry,
+                data.settings.signature,
                 data.settings.depositTokens
             );
         }
@@ -220,6 +229,8 @@ contract swapAndRestakeEigenRouter  {
                 data.settings.recipientAddress,
                 uint256(deltaAfter1),
                 data.settings.eigenLayerStrategy,
+                data.settings.expiry,
+                data.settings.signature,
                 data.settings.depositTokens
             );
         }
@@ -227,31 +238,45 @@ contract swapAndRestakeEigenRouter  {
         return abi.encode(delta);
     }
 
+
+
     function depositLSTIntoStrategy(
         Currency currency,
         address recipient,
         uint256 amount,
        address eigenLayerStrategy,
+       uint expiry,
+       bytes memory signature,
         bool depositToEigenLayer
     ) internal {
 
         
         if(!depositToEigenLayer){
-             currency.take(manager, recipient, amount, false);
-        } else {
              currency.take(manager, address(this), amount, false);
+        } else {
+             currency.take(manager, recipient, amount, false);
+
+             //transfer the output token to the recipient
+          //   IERC20(Currency.unwrap(currency)).transfer(recipient, amount);
 
              //approve the strategy manager for the output token
             IERC20(Currency.unwrap(currency)).approve(address(strategyManager), amount);
 
-             // Deposit stETH into the EigenLayer strategy on behalf of the original sender
-            uint256 shares = strategyManager.depositIntoStrategy(
+        
+             // Deposit stETH into the EigenLayer strategy with signature 
+              uint256 shares = strategyManager.depositIntoStrategyWithSignature(
                 IStrategy(eigenLayerStrategy),
                 IERC20(Currency.unwrap(currency)),
-                uint128(amount)
+                uint128(amount),
+                recipient,
+                expiry,
+                signature
+              
             );
+             
 
-            emit Deposited(recipient, address(strategyManager), IERC20(Currency.unwrap(currency)), amount, shares);
+         
+         emit Deposited(recipient, address(strategyManager), IERC20(Currency.unwrap(currency)), amount, shares);
 
         }
     }
