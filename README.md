@@ -151,6 +151,46 @@ forge install
 forge test
 ```
 
+### Installing Dependencies
+
+To install the necessary dependencies, run:
+
+```bash
+  forge install
+  ```
+
+
+### Building the Project
+
+To build the project, run:
+
+```bash
+  forge build
+ 
+ ```
+
+
+
+### Running Tests
+
+You can run specific tests with detailed output using the following commands:
+
+- To test the swap with UniStake pool success, run:
+
+  ```bash
+  forge test --mt testSwapWithUniStakePoolSuccess -vvvv
+  ```
+
+- To test the swap without deposit with UniStake pool success and bridge CCIP, run:
+
+  ```bash
+  forge test --mt testSwapNoDepositWithUniStakePoolSuccessBridgeCcip -vvvv
+  ```
+
+The `-vvvv` flag provides verbose output, which is useful for debugging and understanding the test execution flow.
+
+
+
 ### Local Development (Anvil)
 
 Other than writing unit tests (recommended!), you can only deploy & test hooks on [anvil](https://book.getfoundry.sh/anvil/)
