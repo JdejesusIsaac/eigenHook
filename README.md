@@ -171,7 +171,7 @@ To build the project, run:
 
 
 
-### Running Tests without EigenLayer Mechanism. swapRouter.sol/swapRouter.t.sol
+### Running Test without EigenLayer Mechanism. swapRouter.sol/swapRouter.t.sol
 
 You can run specific tests with detailed output using the following commands:
 
